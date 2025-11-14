@@ -79,25 +79,6 @@ const SimulationStatus = styled.div`
   z-index: 10;
 `;
 
-const LevelLabels = styled.div`
-  position: absolute;
-  left: 10px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  height: 80%;
-  top: 60px;
-`;
-
-const LevelLabel = styled.div`
-  background-color: #f5f5f5;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-weight: 500;
-  color: #555;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-`;
-
 // 添加缩放控制器
 const ZoomControls = styled.div`
   position: absolute;
@@ -144,31 +125,6 @@ const ResetButton = styled.button`
   }
 `;
 
-// 节点消息气泡
-const MessageBubble = styled.div`
-  position: absolute;
-  background-color: white;
-  border-radius: 8px;
-  padding: 8px 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  font-size: 12px;
-  max-width: 150px;
-  z-index: 100;
-  pointer-events: none;
-  transform: translate(-50%, -120%);
-  
-  &:after {
-    content: '';
-    position: absolute;
-    bottom: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    border-width: 8px 8px 0;
-    border-style: solid;
-    border-color: white transparent transparent;
-  }
-`;
-
 // 根据节点状态获取颜色
 const getStatusColor = (status) => {
   switch (status) {
@@ -192,17 +148,13 @@ const getStatusColor = (status) => {
 
 // 根据节点类型获取颜色，考虑节点是否已激活
 const getNodeColor = (type, status, activatedTypes) => {
-  // 如果节点状态为未激活，则显示为灰色
-  if (status === NODE_STATES.INACTIVE) {
-    return '#9e9e9e'; // 灰色
-  }
-  
   // 如果节点类型未被激活过（未被信息流经过），则显示为灰色
   if (!activatedTypes.includes(type)) {
     return '#9e9e9e'; // 灰色
   }
   
-  // 首先根据状态确定基础颜色
+  // 如果节点类型已被激活过，直接使用当前状态来确定颜色
+  // 节点状态应该已经被正确维护，不需要特殊处理
   let baseColor = getStatusColor(status);
   
   // 然后根据类型调整颜色的深浅
@@ -246,15 +198,10 @@ const getNodeSize = (type) => {
 const getSimulationStepText = (step) => {
   switch(step) {
     case SIMULATION_STEPS.READY: return '准备开始模拟';
-    case SIMULATION_STEPS.ROOT_ACTIVATE: return '激活根节点';
     case SIMULATION_STEPS.ROOT_MESSAGE: return '根节点产生信息';
-    case SIMULATION_STEPS.ORGAN_ACTIVATE: return '激活器官层节点';
     case SIMULATION_STEPS.ORGAN_MESSAGE: return '器官层产生信息';
-    case SIMULATION_STEPS.TISSUE_ACTIVATE: return '激活组织层节点';
     case SIMULATION_STEPS.TISSUE_MESSAGE: return '组织层产生信息';
-    case SIMULATION_STEPS.CELL_ACTIVATE: return '激活细胞层节点';
     case SIMULATION_STEPS.CELL_MESSAGE: return '细胞层产生信息';
-    case SIMULATION_STEPS.TARGET_ACTIVATE: return '激活靶点层节点';
     case SIMULATION_STEPS.TARGET_MESSAGE: return '靶点层产生信息';
     case SIMULATION_STEPS.COMPLETED: return '模拟完成';
     default: return '模拟中...';

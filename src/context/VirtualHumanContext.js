@@ -16,21 +16,27 @@ export const NODE_STATES = {
 // 模拟步骤常量
 export const SIMULATION_STEPS = {
   READY: 0,                // 准备开始
-  ROOT_ACTIVATE: 1,        // 激活根节点
-  ROOT_MESSAGE: 2,         // 根节点产生消息
-  ORGAN_ACTIVATE: 3,       // 激活器官层
-  ORGAN_MESSAGE: 4,        // 器官层产生消息
-  TISSUE_ACTIVATE: 5,      // 激活组织层
-  TISSUE_MESSAGE: 6,       // 组织层产生消息
-  CELL_ACTIVATE: 7,        // 激活细胞层
-  CELL_MESSAGE: 8,         // 细胞层产生消息
-  TARGET_ACTIVATE: 9,      // 激活靶点层
-  TARGET_MESSAGE: 10,      // 靶点层产生消息
-  COMPLETED: 11           // 模拟完成
+  ROOT_MESSAGE: 1,         // 根节点产生消息（并激活）
+  ORGAN_MESSAGE: 2,        // 器官层产生消息（并激活）
+  TISSUE_MESSAGE: 3,       // 组织层产生消息（并激活）
+  CELL_MESSAGE: 4,         // 细胞层产生消息（并激活）
+  TARGET_MESSAGE: 5,       // 靶点层产生消息（并激活）
+  COMPLETED: 6            // 模拟完成
 };
 
 export const VirtualHumanProvider = ({ children }) => {
-  const [data, setData] = useState(flattenedData);
+  // 初始化时保存节点的原始状态
+  const initialData = React.useMemo(() => {
+    return {
+      ...flattenedData,
+      nodes: flattenedData.nodes.map(node => ({
+        ...node,
+        originalStatus: node.status // 保存原始状态
+      }))
+    };
+  }, []);
+  
+  const [data, setData] = useState(initialData);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [infoPanelVisible, setInfoPanelVisible] = useState(false);
   
@@ -121,114 +127,99 @@ export const VirtualHumanProvider = ({ children }) => {
   const activateNodesOfType = (nodeType) => {
     console.log(`激活节点类型: ${nodeType}`);
     
-    const updatedNodes = data.nodes.map(node => {
-      // 只处理指定类型的节点，其他节点保持不变
-      if (node.type === nodeType) {
-        console.log(`激活节点: ${node.id} (${node.name})`);
-        
-        // 只有当节点状态为未激活时才设置为正常状态
-        if (node.status === NODE_STATES.INACTIVE) {
-          return {
-            ...node,
-            status: NODE_STATES.NORMAL
-          };
-        }
-      }
-      return node;
-    });
-    
     setData(prev => ({
       ...prev,
-      nodes: updatedNodes
+      nodes: prev.nodes.map(node => {
+        // 只处理指定类型的节点，其他节点保持不变
+        if (node.type === nodeType) {
+          console.log(`激活节点: ${node.id} (${node.name})`);
+          
+          // 只有当节点状态为未激活时才进行状态更新
+          if (node.status === NODE_STATES.INACTIVE) {
+            return {
+              ...node,
+              status: node.originalStatus || NODE_STATES.NORMAL
+            };
+          }
+        }
+        return node;
+      })
     }));
   };
   
-  // 根据模拟步骤获取应该激活的节点类型
-  const getNodeTypeForStep = (step) => {
-    switch (step) {
-      case SIMULATION_STEPS.ROOT_ACTIVATE:
-      case SIMULATION_STEPS.ROOT_MESSAGE:
-        return 'root';
-      case SIMULATION_STEPS.ORGAN_ACTIVATE:
-      case SIMULATION_STEPS.ORGAN_MESSAGE:
-        return 'organ';
-      case SIMULATION_STEPS.TISSUE_ACTIVATE:
-      case SIMULATION_STEPS.TISSUE_MESSAGE:
-        return 'tissue';
-      case SIMULATION_STEPS.CELL_ACTIVATE:
-      case SIMULATION_STEPS.CELL_MESSAGE:
-        return 'cell';
-      case SIMULATION_STEPS.TARGET_ACTIVATE:
-      case SIMULATION_STEPS.TARGET_MESSAGE:
-        return 'target';
-      default:
-        return null;
-    }
-  };
-
   // 为特定类型的节点生成消息
   const generateNodeMessages = (nodeType) => {
     console.log(`为节点类型生成消息: ${nodeType}`);
     
     const newBubbles = { ...nodeBubbles };
-    const updatedNodes = [...data.nodes];
     
-    data.nodes.forEach((node, index) => {
-      // 只处理指定类型的节点
-      if (node.type === nodeType) {
-        let message;
-        let nodeStatus;
-        
-        // 根节点固定消息
-        if (node.type === 'root') {
-          nodeStatus = NODE_STATES.NORMAL;
-          message = "开始药物信息传递";
-        } else {
-          // 根据节点原始数据中的status属性确定风险级别
-          switch (node.status) {
-            case "normal":
-              nodeStatus = NODE_STATES.NORMAL;
-              message = "状态正常";
-              break;
-            case "low_risk":
-              nodeStatus = NODE_STATES.LOW_RISK;
-              message = "低风险: 一切正常";
-              break;
-            case "affected":
-              nodeStatus = NODE_STATES.MID_RISK;
-              message = "中风险: 需要注意";
-              break;
-            case "inhibited":
-              nodeStatus = NODE_STATES.HIGH_RISK;
-              message = "高风险: 需要处理";
-              break;
-            case "processing":
-              nodeStatus = NODE_STATES.PROCESSING;
-              message = "处理中";
-              break;
-            default:
-              nodeStatus = NODE_STATES.NORMAL;
-              message = "状态正常";
+    setData(prev => {
+      const updatedNodes = prev.nodes.map(node => {
+        // 只处理指定类型的节点
+        if (node.type === nodeType) {
+          let message;
+          let nodeStatus;
+          
+          // 根节点固定消息
+          if (node.type === 'root') {
+            nodeStatus = NODE_STATES.NORMAL;
+            message = "开始药物信息传递";
+          } else {
+            // 始终使用原始状态来确定风险级别，确保状态正确
+            const statusToCheck = node.originalStatus || node.status;
+            
+            switch (statusToCheck) {
+              case "normal":
+              case NODE_STATES.NORMAL:
+                nodeStatus = NODE_STATES.NORMAL;
+                message = "状态正常";
+                break;
+              case "low_risk":
+              case NODE_STATES.LOW_RISK:
+                nodeStatus = NODE_STATES.LOW_RISK;
+                message = "低风险: 一切正常";
+                break;
+              case "affected":
+              case NODE_STATES.MID_RISK:
+                nodeStatus = NODE_STATES.MID_RISK;
+                message = "中风险: 需要注意";
+                break;
+              case "inhibited":
+              case NODE_STATES.HIGH_RISK:
+                nodeStatus = NODE_STATES.HIGH_RISK;
+                message = "高风险: 需要处理";
+                break;
+              case "processing":
+              case NODE_STATES.PROCESSING:
+                nodeStatus = NODE_STATES.PROCESSING;
+                message = "处理中";
+                break;
+              default:
+                nodeStatus = NODE_STATES.NORMAL;
+                message = "状态正常";
+            }
           }
+          
+          // 更新节点状态，保持原始状态不变
+          console.log(`节点 ${node.id} (${node.name}) 生成消息: ${message}, 状态: ${nodeStatus} (原始状态: ${node.originalStatus})`);
+          
+          // 添加气泡消息
+          newBubbles[node.id] = message;
+          
+          return {
+            ...node,
+            status: nodeStatus // 设置为正确的状态，不再使用INACTIVE
+          };
         }
-        
-        // 更新节点状态
-        updatedNodes[index] = {
-          ...node,
-          status: nodeStatus
-        };
-        
-        // 添加气泡消息
-        newBubbles[node.id] = message;
-        console.log(`节点 ${node.id} (${node.name}) 生成消息: ${message}, 状态: ${nodeStatus}`);
-      }
+        return node;
+      });
+      
+      return {
+        ...prev,
+        nodes: updatedNodes
+      };
     });
     
-    // 更新节点状态和气泡消息
-    setData(prev => ({
-      ...prev,
-      nodes: updatedNodes
-    }));
     setNodeBubbles(newBubbles);
   };
 
@@ -297,86 +288,65 @@ export const VirtualHumanProvider = ({ children }) => {
 
   // 跟踪已激活的节点类型，确保它们保持激活状态
   const [activatedNodeTypes, setActivatedNodeTypes] = useState([]);
+
+  // 辅助方法：将节点类型加入已激活列表（避免重复）
+  const addActivatedNodeType = (nodeType) => {
+    setActivatedNodeTypes(prev => (
+      prev.includes(nodeType) ? prev : [...prev, nodeType]
+    ));
+  };
   
   // 执行模拟步骤的函数
   const executeSimulationStep = (step) => {
     console.log(`执行模拟步骤: ${step}`);
     setSimulationStep(step);
     
-    // 根据步骤更新已激活的节点类型
-    let newActivatedTypes = [...activatedNodeTypes];
-    
     switch (step) {
-      case SIMULATION_STEPS.ROOT_ACTIVATE:
-        activateNodesOfType('root');
-        if (!newActivatedTypes.includes('root')) {
-          newActivatedTypes.push('root');
-        }
-        break;
-        
       case SIMULATION_STEPS.ROOT_MESSAGE:
+        activateNodesOfType('root');
         generateNodeMessages('root');
+        addActivatedNodeType('root');
         activateConnectionsFromType('root', 'organ');
         break;
         
-      case SIMULATION_STEPS.ORGAN_ACTIVATE:
-        activateNodesOfType('organ');
-        if (!newActivatedTypes.includes('organ')) {
-          newActivatedTypes.push('organ');
-        }
-        break;
-        
       case SIMULATION_STEPS.ORGAN_MESSAGE:
+        activateNodesOfType('organ');
         generateNodeMessages('organ');
+        addActivatedNodeType('organ');
         activateConnectionsFromType('organ', 'tissue');
         break;
         
-      case SIMULATION_STEPS.TISSUE_ACTIVATE:
-        activateNodesOfType('tissue');
-        if (!newActivatedTypes.includes('tissue')) {
-          newActivatedTypes.push('tissue');
-        }
-        break;
-        
       case SIMULATION_STEPS.TISSUE_MESSAGE:
+        activateNodesOfType('tissue');
         generateNodeMessages('tissue');
+        addActivatedNodeType('tissue');
         activateConnectionsFromType('tissue', 'cell');
         break;
         
-      case SIMULATION_STEPS.CELL_ACTIVATE:
-        activateNodesOfType('cell');
-        if (!newActivatedTypes.includes('cell')) {
-          newActivatedTypes.push('cell');
-        }
-        break;
-        
       case SIMULATION_STEPS.CELL_MESSAGE:
+        activateNodesOfType('cell');
         generateNodeMessages('cell');
+        addActivatedNodeType('cell');
         activateConnectionsFromType('cell', 'target');
         break;
         
-      case SIMULATION_STEPS.TARGET_ACTIVATE:
-        activateNodesOfType('target');
-        if (!newActivatedTypes.includes('target')) {
-          newActivatedTypes.push('target');
-        }
-        break;
-        
       case SIMULATION_STEPS.TARGET_MESSAGE:
+        activateNodesOfType('target');
         generateNodeMessages('target');
+        addActivatedNodeType('target');
+        // 靶点层没有后续连接
+        setActiveConnections([]);
         break;
         
       case SIMULATION_STEPS.COMPLETED:
         console.log("模拟完成");
         setIsSimulating(false);
+        setActiveConnections([]);
         break;
         
       default:
         break;
     }
-    
-    // 更新已激活的节点类型
-    setActivatedNodeTypes(newActivatedTypes);
     
     // 如果不是最后一步，安排下一步
     if (step < SIMULATION_STEPS.COMPLETED) {
@@ -387,7 +357,7 @@ export const VirtualHumanProvider = ({ children }) => {
         console.log(`定时器触发，执行步骤: ${nextStep}`);
         // 移除isSimulating检查，确保定时器触发后一定会执行下一步
         executeSimulationStep(nextStep);
-      }, 5000);
+      }, 3000);
     }
   };
 
@@ -401,20 +371,18 @@ export const VirtualHumanProvider = ({ children }) => {
       timerRef.current = null;
     }
     
-    // 重置所有节点状态为未激活
-    const updatedNodes = data.nodes.map(node => ({
-      ...node,
-      status: NODE_STATES.INACTIVE
+    // 重置所有节点状态为未激活，但保留原始状态
+    setData(prev => ({
+      ...prev,
+      nodes: prev.nodes.map(node => ({
+        ...node,
+        status: NODE_STATES.INACTIVE
+        // originalStatus 保持不变，不需要重新设置
+      }))
     }));
     
-    // 立即更新状态，确保UI立即显示灰色节点
-    setData({
-      ...data,
-      nodes: updatedNodes
-    });
-    
-    // 不重置已激活的节点类型，保留之前激活过的节点类型
-    // 这样可以确保节点在模拟后保持其颜色
+    // 重置已激活的节点类型，开始新的模拟
+    setActivatedNodeTypes([]);
     
     setIsSimulating(true);
     setSimulationStep(SIMULATION_STEPS.READY);
@@ -430,7 +398,7 @@ export const VirtualHumanProvider = ({ children }) => {
       console.log(`所有节点是否为未激活状态: ${allInactive}`);
       
       // 开始第一步模拟
-      executeSimulationStep(SIMULATION_STEPS.ROOT_ACTIVATE);
+      executeSimulationStep(SIMULATION_STEPS.ROOT_MESSAGE);
     }, 1000);
   };
 
