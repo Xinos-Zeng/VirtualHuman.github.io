@@ -439,15 +439,11 @@ const NodeGraph = () => {
     
   // 使用useMemo缓存节点和连接数据，避免不必要的重新计算
   }, [
-    // 只有当这些核心数据真正变化时才重新渲染图表
-    // 移除了一些不需要触发完全重绘的依赖项
     visibleNodeTypes, 
     data.nodes,
     data.connections,
     isSimulating,
     activeConnectionState,
-    // 移除simulationStep，避免每次模拟步骤变化都重置缩放
-    // 保留selectedNodeId以便正确高亮选中节点
     selectedNodeId,
   ]);
   

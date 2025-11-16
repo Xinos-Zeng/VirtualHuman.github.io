@@ -446,7 +446,7 @@ export const VirtualHumanProvider = ({ children }) => {
     console.log(`激活从 ${fromType} 到 ${toType} 的连接`);
     
     const fromNodeIds = data.nodes
-      .filter(node => node.type === fromType && node.shouldActivate && node.isActivated)
+      .filter(node => node.type === fromType && node.shouldActivate)
       .map(node => node.id);
     const toNodeIds = data.nodes
       .filter(node => node.type === toType && node.shouldActivate)
