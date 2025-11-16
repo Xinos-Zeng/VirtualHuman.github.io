@@ -1,5 +1,7 @@
-import React, { createContext, useState, useContext, useRef } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect, useCallback } from 'react';
 import flattenedData from '../data/flattenedData';
+import mockData from '../data/mockData';
+import { parseAgentLogs, buildDesignHierarchy } from '../utils/agentLogsParser';
 
 const VirtualHumanContext = createContext();
 
@@ -13,6 +15,17 @@ export const NODE_STATES = {
   PROCESSING: 'processing' // 蓝色处理中
 };
 
+const VALID_RISK_LEVELS = ['low', 'medium', 'high'];
+const RISK_TO_STATUS = {
+  low: NODE_STATES.NORMAL,
+  medium: NODE_STATES.MID_RISK,
+  high: NODE_STATES.HIGH_RISK
+};
+const DEFAULT_NODE_META = {
+  should_activate: true,
+  risk_level: 'low'
+};
+
 // 模拟步骤常量
 export const SIMULATION_STEPS = {
   READY: 0,                // 准备开始
@@ -24,6 +37,140 @@ export const SIMULATION_STEPS = {
   COMPLETED: 6            // 模拟完成
 };
 
+const CANVAS_WIDTH = 1100;
+const CANVAS_HEIGHT = 700;
+const GRAPH_MARGIN = { top: 80, right: 90, bottom: 50, left: 90 };
+const CONTENT_WIDTH = CANVAS_WIDTH - GRAPH_MARGIN.left - GRAPH_MARGIN.right;
+const CONTENT_HEIGHT = CANVAS_HEIGHT - GRAPH_MARGIN.top - GRAPH_MARGIN.bottom;
+const LEVEL_HEIGHT = CONTENT_HEIGHT / 5;
+
+const getConnectionStrength = (type) => {
+  switch (type) {
+    case 'organ':
+      return 1.0;
+    case 'tissue':
+      return 0.85;
+    case 'cell':
+      return 0.75;
+    case 'target':
+      return 0.65;
+    default:
+      return 0.6;
+  }
+};
+
+const buildGraphDataFromHierarchy = (hierarchy, nodeMeta = {}) => {
+  if (!hierarchy) {
+    return null;
+  }
+
+  const nodes = [];
+  const connections = [];
+
+  const sanitizeRiskLevel = (level) => VALID_RISK_LEVELS.includes(level) ? level : 'low';
+
+  const addNode = (baseNode, position, parentId = null) => {
+    const meta = nodeMeta[baseNode.id] || DEFAULT_NODE_META;
+    const riskLevel = sanitizeRiskLevel(meta.risk_level);
+    const shouldActivate = meta.should_activate !== false;
+
+    const graphNode = {
+      id: baseNode.id,
+      name: baseNode.name || baseNode.id,
+      type: baseNode.type,
+      position,
+      parentId,
+      shouldActivate,
+      riskLevel,
+      originalStatus: RISK_TO_STATUS[riskLevel] || NODE_STATES.NORMAL,
+      status: NODE_STATES.INACTIVE,
+      isActivated: false,
+      isRevealed: baseNode.type === 'root',
+      agentData: {}
+    };
+
+    nodes.push(graphNode);
+
+    if (parentId) {
+      connections.push({
+        from: parentId,
+        to: graphNode.id,
+        strength: getConnectionStrength(graphNode.type),
+        direction: 'unidirectional'
+      });
+    }
+
+    return graphNode;
+  };
+
+  const fallbackRoot = hierarchy.root || {
+    id: mockData.rootNode?.id || 'root_virtual',
+    name: mockData.rootNode?.name || '患者/药物信息',
+    type: 'root',
+    level: 0,
+    levelName: '根节点层'
+  };
+
+  const rootX = CANVAS_WIDTH / 2;
+  const rootY = GRAPH_MARGIN.top;
+  const rootNode = addNode(fallbackRoot, { x: rootX, y: rootY });
+
+  const organs = hierarchy.organs || [];
+  const organCount = Math.max(organs.length, 1);
+  const organSpacing = CONTENT_WIDTH / (organCount + 1);
+  const organY = GRAPH_MARGIN.top + LEVEL_HEIGHT;
+
+  organs.forEach((organGroup, organIndex) => {
+    const organX = GRAPH_MARGIN.left + (organIndex + 1) * organSpacing;
+    const organNode = addNode(organGroup.node, { x: organX, y: organY }, rootNode.id);
+
+    const tissues = organGroup.tissues || [];
+    const tissueCount = Math.max(tissues.length, 1);
+    const tissueWidth = organSpacing * 0.8;
+    const tissueSpacing = tissueWidth / tissueCount;
+    const tissueY = GRAPH_MARGIN.top + LEVEL_HEIGHT * 2;
+
+    tissues.forEach((tissueGroup, tissueIndex) => {
+      const tissueX = organX - tissueWidth / 2 + (tissueIndex + 0.5) * tissueSpacing;
+      const tissueNode = addNode(tissueGroup.node, { x: tissueX, y: tissueY }, organNode.id);
+
+      const cells = tissueGroup.cells || [];
+      const cellCount = Math.max(cells.length, 1);
+      const cellWidth = tissueSpacing * 0.8;
+      const cellSpacing = cellWidth / cellCount;
+      const cellY = GRAPH_MARGIN.top + LEVEL_HEIGHT * 3;
+
+      cells.forEach((cellGroup, cellIndex) => {
+        const cellX = tissueX - cellWidth / 2 + (cellIndex + 0.5) * cellSpacing;
+        const cellNode = addNode(cellGroup.node, { x: cellX, y: cellY }, tissueNode.id);
+
+        const targets = cellGroup.targets || [];
+        if (targets.length === 0) {
+          return;
+        }
+
+        const targetCount = Math.max(targets.length, 1);
+        const targetWidth = cellSpacing * 0.8;
+        const targetSpacing = targetWidth / targetCount;
+        const targetY = GRAPH_MARGIN.top + LEVEL_HEIGHT * 4;
+
+        targets.forEach((targetGroup, targetIndex) => {
+          const targetX = cellX - targetWidth / 2 + (targetIndex + 0.5) * targetSpacing;
+          addNode(targetGroup.node, { x: targetX, y: targetY }, cellNode.id);
+        });
+      });
+    });
+  });
+
+  return {
+    patient: mockData.patient,
+    drug: mockData.drug,
+    nodes,
+    connections,
+    rootNodeId: rootNode.id
+  };
+};
+
 export const VirtualHumanProvider = ({ children }) => {
   // 初始化时保存节点的原始状态
   const initialData = React.useMemo(() => {
@@ -31,7 +178,11 @@ export const VirtualHumanProvider = ({ children }) => {
       ...flattenedData,
       nodes: flattenedData.nodes.map(node => ({
         ...node,
-        originalStatus: node.status // 保存原始状态
+        originalStatus: node.status,
+        shouldActivate: true,
+        riskLevel: 'low',
+        isActivated: true,
+        isRevealed: true
       }))
     };
   }, []);
@@ -39,6 +190,8 @@ export const VirtualHumanProvider = ({ children }) => {
   const [data, setData] = useState(initialData);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [infoPanelVisible, setInfoPanelVisible] = useState(false);
+  const [agentLogMap, setAgentLogMap] = useState({});
+  const [rootNodeId, setRootNodeId] = useState(null);
   
   // 模拟相关状态
   const [isSimulating, setIsSimulating] = useState(false);
@@ -58,6 +211,42 @@ export const VirtualHumanProvider = ({ children }) => {
     target: true,
   });
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAgentLogs = async () => {
+      try {
+        const baseUrl = process.env.PUBLIC_URL || '';
+        const response = await fetch(`${baseUrl}/data/agent_logs_vh_session_1762672447.json`);
+        if (!response.ok) {
+          throw new Error(`加载Agent日志失败: ${response.status}`);
+        }
+
+        const json = await response.json();
+        if (!isMounted) return;
+
+        const parsed = parseAgentLogs(json);
+        const hierarchy = buildDesignHierarchy(parsed);
+        const meta = parsed.nodeMeta || {};
+        const graphData = buildGraphDataFromHierarchy(hierarchy, meta);
+
+        setAgentLogMap(parsed.nodeDetails || {});
+        if (graphData) {
+          setData(graphData);
+          setRootNodeId(graphData.rootNodeId || null);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadAgentLogs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // 切换节点类型可见性
   const toggleNodeTypeVisibility = (type) => {
     setVisibleNodeTypes(prev => ({
@@ -68,23 +257,27 @@ export const VirtualHumanProvider = ({ children }) => {
 
   // 获取可见节点
   const getVisibleNodes = () => {
-    return data.nodes.filter(node => visibleNodeTypes[node.type]);
+    return data.nodes.filter(node => node.isRevealed && visibleNodeTypes[node.type]);
   };
 
   // 获取可见连接
   const getVisibleConnections = () => {
-    const visibleNodes = getVisibleNodes();
-    const visibleNodeIds = visibleNodes.map(node => node.id);
+    const visibleIds = new Set(
+      data.nodes
+        .filter(node => node.isRevealed && visibleNodeTypes[node.type])
+        .map(node => node.id)
+    );
     
-    return data.connections.filter(conn => 
-      visibleNodeIds.includes(conn.from) && visibleNodeIds.includes(conn.to)
+    return data.connections.filter(
+      conn => visibleIds.has(conn.from) && visibleIds.has(conn.to)
     );
   };
 
   // 获取当前激活的连接
   const getActiveConnections = () => {
     if (!isSimulating) return [];
-    return activeConnections;
+    const visibleIds = new Set(data.nodes.filter(node => node.isRevealed).map(node => node.id));
+    return activeConnections.filter(conn => visibleIds.has(conn.from) && visibleIds.has(conn.to));
   };
 
   // 通过ID获取节点
@@ -115,6 +308,11 @@ export const VirtualHumanProvider = ({ children }) => {
     return connectedNodeIds.map(id => getNodeById(id)).filter(Boolean);
   };
 
+  const getAgentLogById = useCallback((nodeId) => {
+    if (!nodeId) return null;
+    return agentLogMap[nodeId] || null;
+  }, [agentLogMap]);
+
   // 设置选中节点
   const setSelectedNode = (nodeId) => {
     setSelectedNodeId(nodeId);
@@ -127,24 +325,44 @@ export const VirtualHumanProvider = ({ children }) => {
   const activateNodesOfType = (nodeType) => {
     console.log(`激活节点类型: ${nodeType}`);
     
-    setData(prev => ({
-      ...prev,
-      nodes: prev.nodes.map(node => {
-        // 只处理指定类型的节点，其他节点保持不变
-        if (node.type === nodeType) {
-          console.log(`激活节点: ${node.id} (${node.name})`);
-          
-          // 只有当节点状态为未激活时才进行状态更新
-          if (node.status === NODE_STATES.INACTIVE) {
-            return {
-              ...node,
-              status: node.originalStatus || NODE_STATES.NORMAL
-            };
-          }
+    setData(prev => {
+      const activatedIds = [];
+      const updatedNodes = prev.nodes.map(node => {
+        if (node.type !== nodeType || !node.shouldActivate) {
+          return node;
+        }
+
+        if (!node.isActivated) {
+          activatedIds.push(node.id);
+          return {
+            ...node,
+            status: node.originalStatus || NODE_STATES.NORMAL,
+            isActivated: true,
+            isRevealed: true
+          };
         }
         return node;
-      })
-    }));
+      });
+
+      if (activatedIds.length === 0) {
+        return prev;
+      }
+
+      const nodesWithChildren = updatedNodes.map(node => {
+        if (node.parentId && activatedIds.includes(node.parentId)) {
+          return {
+            ...node,
+            isRevealed: true
+          };
+        }
+        return node;
+      });
+
+      return {
+        ...prev,
+        nodes: nodesWithChildren
+      };
+    });
   };
   
   // 为特定类型的节点生成消息
@@ -155,8 +373,8 @@ export const VirtualHumanProvider = ({ children }) => {
     
     setData(prev => {
       const updatedNodes = prev.nodes.map(node => {
-        // 只处理指定类型的节点
-        if (node.type === nodeType) {
+        // 只处理允许激活的同类型节点
+        if (node.type === nodeType && node.shouldActivate && node.isActivated) {
           let message;
           let nodeStatus;
           
@@ -177,17 +395,17 @@ export const VirtualHumanProvider = ({ children }) => {
               case "low_risk":
               case NODE_STATES.LOW_RISK:
                 nodeStatus = NODE_STATES.LOW_RISK;
-                message = "低风险: 一切正常";
+                message = "低风险";
                 break;
               case "affected":
               case NODE_STATES.MID_RISK:
                 nodeStatus = NODE_STATES.MID_RISK;
-                message = "中风险: 需要注意";
+                message = "中风险";
                 break;
               case "inhibited":
               case NODE_STATES.HIGH_RISK:
                 nodeStatus = NODE_STATES.HIGH_RISK;
-                message = "高风险: 需要处理";
+                message = "高风险";
                 break;
               case "processing":
               case NODE_STATES.PROCESSING:
@@ -227,20 +445,21 @@ export const VirtualHumanProvider = ({ children }) => {
   const activateConnectionsFromType = (fromType, toType) => {
     console.log(`激活从 ${fromType} 到 ${toType} 的连接`);
     
-    const fromNodes = data.nodes.filter(node => node.type === fromType);
-    const toNodes = data.nodes.filter(node => node.type === toType);
+    const fromNodeIds = data.nodes
+      .filter(node => node.type === fromType && node.shouldActivate && node.isActivated)
+      .map(node => node.id);
+    const toNodeIds = data.nodes
+      .filter(node => node.type === toType && node.shouldActivate)
+      .map(node => node.id);
     
-    const newActiveConnections = [];
+    if (fromNodeIds.length === 0 || toNodeIds.length === 0) {
+      setActiveConnections([]);
+      return;
+    }
     
-    data.connections.forEach(conn => {
-      const fromNode = fromNodes.find(node => node.id === conn.from);
-      const toNode = toNodes.find(node => node.id === conn.to);
-      
-      if (fromNode && toNode) {
-        newActiveConnections.push(conn);
-        console.log(`激活连接: ${fromNode.id} -> ${toNode.id}`);
-      }
-    });
+    const newActiveConnections = data.connections.filter(conn =>
+      fromNodeIds.includes(conn.from) && toNodeIds.includes(conn.to)
+    );
     
     setActiveConnections(newActiveConnections);
   };
@@ -252,7 +471,7 @@ export const VirtualHumanProvider = ({ children }) => {
     
     // 获取节点类型
     const node = getNodeById(nodeId);
-    if (!node) return null;
+    if (!node || !node.isActivated || !node.shouldActivate) return null;
     
     // 根据当前模拟步骤，决定哪些类型的节点可以显示气泡
     const nodeType = node.type;
@@ -286,16 +505,6 @@ export const VirtualHumanProvider = ({ children }) => {
     return shouldShowBubble ? nodeBubbles[nodeId] : null;
   };
 
-  // 跟踪已激活的节点类型，确保它们保持激活状态
-  const [activatedNodeTypes, setActivatedNodeTypes] = useState([]);
-
-  // 辅助方法：将节点类型加入已激活列表（避免重复）
-  const addActivatedNodeType = (nodeType) => {
-    setActivatedNodeTypes(prev => (
-      prev.includes(nodeType) ? prev : [...prev, nodeType]
-    ));
-  };
-  
   // 执行模拟步骤的函数
   const executeSimulationStep = (step) => {
     console.log(`执行模拟步骤: ${step}`);
@@ -305,35 +514,30 @@ export const VirtualHumanProvider = ({ children }) => {
       case SIMULATION_STEPS.ROOT_MESSAGE:
         activateNodesOfType('root');
         generateNodeMessages('root');
-        addActivatedNodeType('root');
         activateConnectionsFromType('root', 'organ');
         break;
         
       case SIMULATION_STEPS.ORGAN_MESSAGE:
         activateNodesOfType('organ');
         generateNodeMessages('organ');
-        addActivatedNodeType('organ');
         activateConnectionsFromType('organ', 'tissue');
         break;
         
       case SIMULATION_STEPS.TISSUE_MESSAGE:
         activateNodesOfType('tissue');
         generateNodeMessages('tissue');
-        addActivatedNodeType('tissue');
         activateConnectionsFromType('tissue', 'cell');
         break;
         
       case SIMULATION_STEPS.CELL_MESSAGE:
         activateNodesOfType('cell');
         generateNodeMessages('cell');
-        addActivatedNodeType('cell');
         activateConnectionsFromType('cell', 'target');
         break;
         
       case SIMULATION_STEPS.TARGET_MESSAGE:
         activateNodesOfType('target');
         generateNodeMessages('target');
-        addActivatedNodeType('target');
         // 靶点层没有后续连接
         setActiveConnections([]);
         break;
@@ -371,18 +575,22 @@ export const VirtualHumanProvider = ({ children }) => {
       timerRef.current = null;
     }
     
-    // 重置所有节点状态为未激活，但保留原始状态
-    setData(prev => ({
-      ...prev,
-      nodes: prev.nodes.map(node => ({
-        ...node,
-        status: NODE_STATES.INACTIVE
-        // originalStatus 保持不变，不需要重新设置
-      }))
-    }));
-    
-    // 重置已激活的节点类型，开始新的模拟
-    setActivatedNodeTypes([]);
+    // 重置所有节点状态与可见性
+    setData(prev => {
+      const effectiveRootId = rootNodeId || prev.nodes.find(node => node.type === 'root')?.id;
+      return {
+        ...prev,
+        nodes: prev.nodes.map(node => {
+          const isRoot = node.id === effectiveRootId;
+          return {
+            ...node,
+            status: NODE_STATES.INACTIVE,
+            isActivated: false,
+            isRevealed: Boolean(isRoot)
+          };
+        })
+      };
+    });
     
     setIsSimulating(true);
     setSimulationStep(SIMULATION_STEPS.READY);
@@ -421,7 +629,7 @@ export const VirtualHumanProvider = ({ children }) => {
   };
 
   // 在组件卸载时清除定时器
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -452,8 +660,7 @@ export const VirtualHumanProvider = ({ children }) => {
     getNodeBubble,
     simulationStep,
     SIMULATION_STEPS,
-    // 暴露已激活的节点类型
-    activatedNodeTypes
+    getAgentLogById
   };
 
   return (

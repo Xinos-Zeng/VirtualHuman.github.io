@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useVirtualHuman } from '../../context/VirtualHumanContext';
 
@@ -119,6 +119,108 @@ const Value = styled.div`
   word-break: break-word;
 `;
 
+const TextPreview = styled.div`
+  max-height: 140px;
+  overflow: hidden;
+  padding: 12px;
+  background: #fafafa;
+  border: 1px solid #eeeeee;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-size: 0.9em;
+  position: relative;
+`;
+
+const ViewMoreButton = styled.button`
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #3f51b5;
+  background-color: white;
+  color: #3f51b5;
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: #3f51b5;
+    color: white;
+  }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+`;
+
+const ModalContent = styled.div`
+  width: 70%;
+  max-width: 840px;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+`;
+
+const ModalHeader = styled.div`
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const ModalTitle = styled.h4`
+  margin: 0;
+  font-size: 1.1em;
+  color: #333;
+`;
+
+const ModalCloseButton = styled.button`
+  border: none;
+  background: transparent;
+  font-size: 1.4em;
+  cursor: pointer;
+  color: #666;
+
+  &:hover {
+    color: #000;
+  }
+`;
+
+const ModalBody = styled.div`
+  padding: 20px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 0.95em;
+`;
+
+const TagList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const Tag = styled.span`
+  padding: 4px 10px;
+  border-radius: 12px;
+  background-color: #f1f3f5;
+  color: #555;
+  font-size: 0.8em;
+`;
+
 const StatusBadge = styled.span`
   display: inline-block;
   padding: 4px 10px;
@@ -212,6 +314,7 @@ const getNodeStatusName = (status) => {
     case 'affected': return '受影响';
     case 'inhibited': return '被抑制';
     case 'processing': return '处理中';
+    case 'inactive': return '未激活';
     default: return '未知';
   }
 };
@@ -223,16 +326,43 @@ const InfoPanel = ({ visible, onToggle }) => {
     getParentNode, 
     getChildNodes, 
     getConnectedNodes, 
-    setSelectedNode 
+    setSelectedNode,
+    getAgentLogById
   } = useVirtualHuman();
   
   const node = getNodeById(selectedNode);
+  const [modalContent, setModalContent] = useState(null);
   
   // 检查是否应该显示按钮（只有在有选中节点时才显示）
   const shouldShowButton = !!node;
 
   const handleRelatedNodeClick = (nodeId) => {
     setSelectedNode(nodeId);
+  };
+
+  const openModal = (title, content) => {
+    setModalContent({ title, content });
+  };
+
+  const closeModal = () => setModalContent(null);
+
+  const renderTextPreview = (label, content) => {
+    if (!content) return null;
+    const shouldTruncate = content.length > 400;
+
+    return (
+      <InfoItem>
+        <Label>{label}</Label>
+        <TextPreview style={{ maxHeight: shouldTruncate ? '140px' : 'unset' }}>
+          {content}
+        </TextPreview>
+        {shouldTruncate && (
+          <ViewMoreButton onClick={() => openModal(label, content)}>
+            查看完整内容
+          </ViewMoreButton>
+        )}
+      </InfoItem>
+    );
   };
 
   // 面板内容
@@ -249,6 +379,14 @@ const InfoPanel = ({ visible, onToggle }) => {
     const parentNode = getParentNode(node.id);
     const childNodes = getChildNodes(node.id);
     const connectedNodes = getConnectedNodes(node.id);
+    const agentLog = getAgentLogById(node.id);
+    const outputs = agentLog?.outputs;
+    const isNodeActivated = node.isActivated;
+    const riskLabelMap = {
+      low: '低风险',
+      medium: '中风险',
+      high: '高风险'
+    };
 
     return (
       <>
@@ -260,8 +398,8 @@ const InfoPanel = ({ visible, onToggle }) => {
         <InfoSection>
           <SectionTitle>基本信息</SectionTitle>
           <InfoItem>
-            <Label>ID</Label>
-            <Value>{node.id}</Value>
+            <Label>节点名称</Label>
+            <Value>{node.name || node.id}</Value>
           </InfoItem>
 
           {node.status && (
@@ -272,17 +410,51 @@ const InfoPanel = ({ visible, onToggle }) => {
               </Value>
             </InfoItem>
           )}
+
+          <InfoItem>
+            <Label>风险等级</Label>
+            <Value>{riskLabelMap[node.riskLevel] || '未定义'}</Value>
+          </InfoItem>
+
+          <InfoItem>
+            <Label>激活状态</Label>
+            <Value>{isNodeActivated ? '已激活' : '未激活'}</Value>
+          </InfoItem>
         </InfoSection>
 
-        {node.agentData && Object.keys(node.agentData).length > 0 && (
+        {outputs && (
           <InfoSection>
-            <SectionTitle>Agent数据</SectionTitle>
-            {Object.entries(node.agentData).map(([key, value]) => (
-              <InfoItem key={key}>
-                <Label>{key}</Label>
-                <Value>{typeof value === 'number' ? value.toFixed(2) : value}</Value>
+            <SectionTitle>Agent输出</SectionTitle>
+            
+            {node.shouldActivate ? (
+              isNodeActivated ? (
+                <>
+                  {renderTextPreview('首轮分析', outputs.primaryText)}
+                  {renderTextPreview('第二轮分析', outputs.secondaryText)}
+                  {renderTextPreview('工具总结', outputs.toolSummary)}
+
+                  {outputs.toolQueries && outputs.toolQueries.length > 0 && (
+                    <InfoItem>
+                      <Label>工具查询</Label>
+                      <TagList>
+                        {outputs.toolQueries.map((query, index) => (
+                          <Tag key={`${node.id}-query-${index}`}>{query}</Tag>
+                        ))}
+                      </TagList>
+                    </InfoItem>
+                  )}
+                </>
+              ) : (
+                <InfoItem>
+                  <Value>节点尚未激活，暂无输出</Value>
+                </InfoItem>
+              )
+            ) : (
+              <InfoItem>
+                <Value>该节点未纳入本次模拟</Value>
               </InfoItem>
-            ))}
+            )}
+
           </InfoSection>
         )}
 
@@ -335,19 +507,33 @@ const InfoPanel = ({ visible, onToggle }) => {
 
   // 始终渲染面板容器，但根据visible属性控制其位置
   return (
-    <PanelContainer visible={visible}>
-      {/* 只有在有选中节点时才显示按钮 */}
-      {shouldShowButton && (
-        <ButtonContainer>
-          <ToggleButton onClick={onToggle}>
-            {visible ? "收起" : "展开"}
-          </ToggleButton>
-        </ButtonContainer>
+    <>
+      <PanelContainer visible={visible}>
+        {/* 只有在有选中节点时才显示按钮 */}
+        {shouldShowButton && (
+          <ButtonContainer>
+            <ToggleButton onClick={onToggle}>
+              {visible ? "收起" : "展开"}
+            </ToggleButton>
+          </ButtonContainer>
+        )}
+        <Panel>
+          {renderPanelContent()}
+        </Panel>
+      </PanelContainer>
+
+      {modalContent && (
+        <ModalOverlay>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>{modalContent.title}</ModalTitle>
+              <ModalCloseButton onClick={closeModal}>×</ModalCloseButton>
+            </ModalHeader>
+            <ModalBody>{modalContent.content}</ModalBody>
+          </ModalContent>
+        </ModalOverlay>
       )}
-      <Panel>
-        {renderPanelContent()}
-      </Panel>
-    </PanelContainer>
+    </>
   );
 };
 

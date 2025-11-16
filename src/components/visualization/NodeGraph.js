@@ -125,50 +125,33 @@ const ResetButton = styled.button`
   }
 `;
 
-// 根据节点状态获取颜色
-const getStatusColor = (status) => {
-  switch (status) {
-    case NODE_STATES.NORMAL:
-    case NODE_STATES.LOW_RISK:
-      return '#4caf50'; // 绿色
-    case NODE_STATES.MID_RISK:
-    case 'affected':
-      return '#ff9800'; // 橙色
-    case NODE_STATES.HIGH_RISK:
-    case 'inhibited':
-      return '#f44336'; // 红色
-    case NODE_STATES.PROCESSING:
-    case 'processing':
-      return '#2196f3'; // 蓝色
-    case NODE_STATES.INACTIVE:
-    default:
-      return '#9e9e9e'; // 灰色
-  }
+// 根据节点类型获取颜色，考虑节点是否已激活
+const riskColorMap = {
+  low: '#4caf50',
+  medium: '#ff9800',
+  high: '#f44336'
 };
 
-// 根据节点类型获取颜色，考虑节点是否已激活
-const getNodeColor = (type, status, activatedTypes) => {
-  // 如果节点类型未被激活过（未被信息流经过），则显示为灰色
-  if (!activatedTypes.includes(type)) {
-    return '#9e9e9e'; // 灰色
+const getNodeColor = (node) => {
+  if (!node || !node.isActivated) {
+    return '#9e9e9e';
   }
   
-  // 如果节点类型已被激活过，直接使用当前状态来确定颜色
-  // 节点状态应该已经被正确维护，不需要特殊处理
-  let baseColor = getStatusColor(status);
+  if (node.type === 'root') {
+    return '#3f51b5';
+  }
   
-  // 然后根据类型调整颜色的深浅
-  switch (type) {
-    case 'root':
-      return '#3f51b5';
+  const baseColor = riskColorMap[node.riskLevel] || '#4caf50';
+  
+  switch (node.type) {
     case 'organ':
-      return d3.color(baseColor).darker(0.5); // 器官颜色更深
+      return d3.color(baseColor).darker(0.5);
     case 'tissue':
-      return baseColor; // 组织使用基础颜色
+      return baseColor;
     case 'cell':
-      return d3.color(baseColor).brighter(0.3); // 细胞颜色稍亮
+      return d3.color(baseColor).brighter(0.3);
     case 'target':
-      return d3.color(baseColor).brighter(0.6); // 靶点颜色最亮
+      return d3.color(baseColor).brighter(0.6);
     default:
       return baseColor;
   }
@@ -216,6 +199,7 @@ const NodeGraph = () => {
     toggleNodeTypeVisibility,
     getVisibleNodes,
     getVisibleConnections,
+    activeConnections: activeConnectionState,
     getActiveConnections,
     selectedNode: selectedNodeId, // 修正属性名称
     setSelectedNode,
@@ -226,9 +210,7 @@ const NodeGraph = () => {
     stopSimulation,
     getNodeBubble,
     simulationStep,
-    SIMULATION_STEPS,
-    // 获取已激活的节点类型
-    activatedNodeTypes
+    SIMULATION_STEPS
   } = useVirtualHuman();
   
   // 存储当前的缩放和平移状态
@@ -437,7 +419,7 @@ const NodeGraph = () => {
     // 添加节点圆形（仅保留一个圆形，移除外围状态圆球）
     nodeGroups.append("circle")
       .attr("r", d => getNodeSize(d.type))
-      .attr("fill", d => getNodeColor(d.type, d.status, activatedNodeTypes))
+      .attr("fill", d => getNodeColor(d))
       .attr("stroke", d => d.id === selectedNodeId ? "#3f51b5" : "#333")
       .attr("stroke-width", d => d.id === selectedNodeId ? 3 : 1)
       .attr("opacity", d => d.id === selectedNodeId ? 1 : 0.9)
@@ -448,32 +430,7 @@ const NodeGraph = () => {
         setInfoPanelVisible(true); // 自动展开信息面板
       });
     
-    // 添加节点标签背景（提高可读性）
-    nodeGroups.append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", d => getNodeSize(d.type) + 5)
-      .attr("stroke", "white")
-      .attr("stroke-width", 3)
-      .attr("stroke-linejoin", "round")
-      .attr("paint-order", "stroke")
-      .text(d => d.name)
-      .attr("font-size", d => d.type === 'root' ? "14px" : d.type === 'organ' ? "12px" : "10px")
-      .attr("opacity", 0.9);
-    
-    // 添加节点名称
-    nodeGroups.append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", d => getNodeSize(d.type) + 5)
-      .text(d => d.name)
-      .attr("fill", "#333")
-      .attr("font-size", d => d.type === 'root' ? "14px" : d.type === 'organ' ? "12px" : "10px")
-      .attr("font-weight", d => d.id === selectedNodeId ? "bold" : "normal")
-      .style("cursor", "pointer")
-      .on("click", (event, d) => {
-        event.stopPropagation();
-        setSelectedNode(d.id);
-        setInfoPanelVisible(true); // 自动展开信息面板
-      });
+    // 移除节点文字标签，防止节点密集时重叠
     
     // 点击空白处取消选中
     svg.on("click", () => {
@@ -488,11 +445,10 @@ const NodeGraph = () => {
     data.nodes,
     data.connections,
     isSimulating,
+    activeConnectionState,
     // 移除simulationStep，避免每次模拟步骤变化都重置缩放
     // 保留selectedNodeId以便正确高亮选中节点
     selectedNodeId,
-    // 添加activatedNodeTypes，确保激活的节点类型变化时重新渲染
-    activatedNodeTypes
   ]);
   
   // 更新节点气泡 - 使用SVG外部对象直接添加到图形中
