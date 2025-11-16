@@ -44,6 +44,99 @@ const CONTENT_WIDTH = CANVAS_WIDTH - GRAPH_MARGIN.left - GRAPH_MARGIN.right;
 const CONTENT_HEIGHT = CANVAS_HEIGHT - GRAPH_MARGIN.top - GRAPH_MARGIN.bottom;
 const LEVEL_HEIGHT = CONTENT_HEIGHT / 5;
 
+const splitByComma = (text = '') =>
+  text
+    .split(/[,，]/)
+    .map(segment => segment.trim())
+    .filter(Boolean);
+
+const normalizeDosageUnit = (unit = '') => {
+  if (!unit) return '';
+  const lower = unit.toLowerCase();
+  if (lower.includes('毫克') || lower === 'mg') return 'mg';
+  if (lower.includes('微克') || lower.includes('μg') || lower.includes('mcg')) return 'μg';
+  if (lower.includes('克') || lower === 'g') return 'g';
+  return unit;
+};
+
+const extractPlanInfo = (text = '') => {
+  if (!text) return {};
+  const planMatch = text.match(/计划([^，。]*)/);
+  if (!planMatch) return {};
+  const planSegment = planMatch[1]?.trim();
+  if (!planSegment) return {};
+
+  const dosageMatch = planSegment.match(/(\d+(?:\.\d+)?)(\s*(?:mg|g|μg|mcg|毫克|克|微克))/i);
+  const dosageValue = dosageMatch ? Number.parseFloat(dosageMatch[1]) : null;
+  const rawUnit = dosageMatch ? (dosageMatch[2] || '').trim() : '';
+  return {
+    planText: `计划${planSegment}`,
+    dosageValue: Number.isNaN(dosageValue) ? null : dosageValue,
+    dosageUnit: normalizeDosageUnit(rawUnit)
+  };
+};
+
+const buildPatientInfoFromOriginalInput = (originalInput, sessionId) => {
+  if (!originalInput) return null;
+  const summary = (originalInput.patient || '').trim();
+  const disease = (originalInput.disease || '').trim();
+  if (!summary && !disease) return null;
+
+  const ageMatch = summary.match(/(\d+)\s*岁/);
+  const age = ageMatch ? parseInt(ageMatch[1], 10) : null;
+  const gender = summary.includes('女') ? 'female' : summary.includes('男') ? 'male' : null;
+
+  const conditions = summary
+    ? splitByComma(summary.replace(ageMatch ? ageMatch[0] : '', '').trim()).filter(item => !item.includes('计划'))
+    : [];
+
+  return {
+    id: sessionId || 'virtual_patient',
+    name: disease ? `${disease} 患者` : '虚拟患者',
+    age,
+    gender,
+    weight: null,
+    height: null,
+    summary,
+    conditions,
+    disease
+  };
+};
+
+const buildDrugInfoFromOriginalInput = (originalInput) => {
+  if (!originalInput) return null;
+  const { planText, dosageValue, dosageUnit } = extractPlanInfo(originalInput.patient || '');
+  return {
+    id: originalInput.drug || 'virtual_drug',
+    name: originalInput.drug || '虚拟药物',
+    dosage: typeof dosageValue === 'number' && !Number.isNaN(dosageValue) ? dosageValue : null,
+    unit: dosageUnit || '',
+    indication: (originalInput.disease || '').trim(),
+    plan: planText || ''
+  };
+};
+
+const applyRootAgentData = (nodes = [], patientInfo, drugInfo, originalInput) => {
+  if (!nodes || nodes.length === 0) return nodes;
+  return nodes.map(node => {
+    if (node.type !== 'root') return node;
+    return {
+      ...node,
+      agentData: {
+        ...node.agentData,
+        originalInput,
+        patientSummary: patientInfo?.summary,
+        patientConditions: patientInfo?.conditions,
+        patientDisease: patientInfo?.disease,
+        patientAge: patientInfo?.age,
+        drugName: drugInfo?.name,
+        drugPlan: drugInfo?.plan,
+        drugIndication: drugInfo?.indication
+      }
+    };
+  });
+};
+
 const getConnectionStrength = (type) => {
   switch (type) {
     case 'organ':
@@ -229,11 +322,37 @@ export const VirtualHumanProvider = ({ children }) => {
         const hierarchy = buildDesignHierarchy(parsed);
         const meta = parsed.nodeMeta || {};
         const graphData = buildGraphDataFromHierarchy(hierarchy, meta);
+        const originalInput = parsed.originalInput || null;
+        const patientInfo = buildPatientInfoFromOriginalInput(originalInput, parsed.sessionId);
+        const drugInfo = buildDrugInfoFromOriginalInput(originalInput);
+        const nodesWithRootInfo = applyRootAgentData(
+          graphData?.nodes || [],
+          patientInfo,
+          drugInfo,
+          originalInput
+        );
 
         setAgentLogMap(parsed.nodeDetails || {});
         if (graphData) {
-          setData(graphData);
-          setRootNodeId(graphData.rootNodeId || null);
+          const resolvedPatient = patientInfo
+            ? { ...graphData.patient, ...patientInfo }
+            : graphData.patient;
+          const resolvedDrug = drugInfo
+            ? { ...graphData.drug, ...drugInfo }
+            : graphData.drug;
+
+          const resolvedRootId =
+            graphData.rootNodeId ||
+            nodesWithRootInfo.find(node => node.type === 'root')?.id ||
+            null;
+
+          setData({
+            ...graphData,
+            patient: resolvedPatient,
+            drug: resolvedDrug,
+            nodes: nodesWithRootInfo
+          });
+          setRootNodeId(resolvedRootId);
         }
       } catch (error) {
         console.error(error);

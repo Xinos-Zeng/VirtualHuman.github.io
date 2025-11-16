@@ -92,6 +92,16 @@ const inferParentIdFromAgentId = (node) => {
   return null;
 };
 
+const findOriginalInput = (logs = []) => {
+  for (const log of logs) {
+    const original = log?.input_data?.original_input;
+    if (original && Object.keys(original).length > 0) {
+      return original;
+    }
+  }
+  return null;
+};
+
 /**
  * 将 JSON 数据解析成树结构及分组列表
  * @param {string|object} source - JSON 字符串或对象
@@ -103,10 +113,10 @@ export const parseAgentLogs = (source) => {
   }
 
   const nodeMeta = payload.node_meta || {};
-
   const sortedLogs = [...payload.logs].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  const originalInput = findOriginalInput(sortedLogs);
 
   const nodeMap = new Map();
   const nodeDetails = {};
@@ -225,6 +235,7 @@ export const parseAgentLogs = (source) => {
     groupedNodes: grouped,
     nodeDetails,
     nodeMeta,
+    originalInput,
     raw: payload
   };
 };

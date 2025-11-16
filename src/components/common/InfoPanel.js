@@ -458,6 +458,57 @@ const InfoPanel = ({ visible, onToggle }) => {
           </InfoSection>
         )}
 
+        {node.type === 'root' && (
+          (() => {
+            const agentData = node.agentData || {};
+            const hasPatientInfo =
+              agentData.patientSummary ||
+              (agentData.patientConditions && agentData.patientConditions.length > 0) ||
+              agentData.patientDisease;
+            const hasDrugInfo = agentData.drugName || agentData.drugPlan || agentData.drugIndication;
+
+            if (!hasPatientInfo && !hasDrugInfo) {
+              return null;
+            }
+
+            return (
+              <InfoSection>
+                <SectionTitle>患者 / 药物信息</SectionTitle>
+                {agentData.patientDisease && (
+                  <InfoItem>
+                    <Label>疾病</Label>
+                    <Value>{agentData.patientDisease}</Value>
+                  </InfoItem>
+                )}
+                {agentData.patientSummary && (
+                  <InfoItem>
+                    <Label>患者概述</Label>
+                    <Value>{agentData.patientSummary}</Value>
+                  </InfoItem>
+                )}
+                {agentData.patientConditions?.length > 0 && (
+                  <InfoItem>
+                    <Label>关键特征</Label>
+                    <Value>{agentData.patientConditions.join('，')}</Value>
+                  </InfoItem>
+                )}
+                {agentData.drugName && (
+                  <InfoItem>
+                    <Label>药物</Label>
+                    <Value>{agentData.drugName}</Value>
+                  </InfoItem>
+                )}
+                {agentData.drugPlan && (
+                  <InfoItem>
+                    <Label>用药计划</Label>
+                    <Value>{agentData.drugPlan}</Value>
+                  </InfoItem>
+                )}
+              </InfoSection>
+            );
+          })()
+        )}
+
         <InfoSection>
           <SectionTitle>关系节点</SectionTitle>
           

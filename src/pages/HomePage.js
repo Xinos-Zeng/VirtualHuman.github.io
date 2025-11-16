@@ -107,13 +107,17 @@ const InfoCardIcon = styled.span`
 
 const InfoList = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
 `;
 
 const InfoItem = styled.div`
   display: flex;
   flex-direction: column;
+`;
+
+const InfoItemFull = styled(InfoItem)`
+  grid-column: 1 / -1;
 `;
 
 const InfoLabel = styled.div`
@@ -125,6 +129,9 @@ const InfoValue = styled.div`
   font-size: 0.95em;
   font-weight: 500;
   color: #333;
+  word-break: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
 `;
 
 const HomePage = () => {
@@ -137,6 +144,19 @@ const HomePage = () => {
   } = useVirtualHuman();
   
   const { patient, drug } = data;
+
+  const formatValue = (value, suffix = '') => {
+    if (value === undefined || value === null || value === '') {
+      return '-';
+    }
+    return `${value}${suffix}`;
+  };
+
+  const formatGender = (gender) => {
+    if (gender === 'male') return '男';
+    if (gender === 'female') return '女';
+    return '-';
+  };
 
   // 切换信息面板显示/隐藏
   const toggleInfoPanel = () => {
@@ -166,29 +186,39 @@ const HomePage = () => {
           </InfoCardTitle>
           <InfoList>
             <InfoItem>
-              <InfoLabel>ID</InfoLabel>
-              <InfoValue>{patient.id}</InfoValue>
-            </InfoItem>
-            <InfoItem>
-              <InfoLabel>姓名</InfoLabel>
-              <InfoValue>{patient.name}</InfoValue>
-            </InfoItem>
-            <InfoItem>
               <InfoLabel>年龄</InfoLabel>
-              <InfoValue>{patient.age}岁</InfoValue>
+              <InfoValue>{formatValue(patient.age, '岁')}</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>性别</InfoLabel>
-              <InfoValue>{patient.gender === 'male' ? '男' : '女'}</InfoValue>
+              <InfoValue>{formatGender(patient.gender)}</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>体重</InfoLabel>
-              <InfoValue>{patient.weight}kg</InfoValue>
+              <InfoValue>{formatValue(patient.weight, 'kg')}</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>身高</InfoLabel>
-              <InfoValue>{patient.height}cm</InfoValue>
+              <InfoValue>{formatValue(patient.height, 'cm')}</InfoValue>
             </InfoItem>
+            {patient?.disease && (
+              <InfoItem>
+                <InfoLabel>疾病</InfoLabel>
+                <InfoValue>{patient.disease}</InfoValue>
+              </InfoItem>
+            )}
+            {patient?.summary && (
+              <InfoItemFull>
+                <InfoLabel>概述</InfoLabel>
+                <InfoValue>{patient.summary}</InfoValue>
+              </InfoItemFull>
+            )}
+            {patient?.conditions?.length > 0 && (
+              <InfoItemFull>
+                <InfoLabel>关键特征</InfoLabel>
+                <InfoValue>{patient.conditions.join('，')}</InfoValue>
+              </InfoItemFull>
+            )}
           </InfoList>
         </InfoCard>
 
@@ -199,17 +229,29 @@ const HomePage = () => {
           </InfoCardTitle>
           <InfoList>
             <InfoItem>
-              <InfoLabel>ID</InfoLabel>
-              <InfoValue>{drug.id}</InfoValue>
-            </InfoItem>
-            <InfoItem>
               <InfoLabel>名称</InfoLabel>
-              <InfoValue>{drug.name}</InfoValue>
+              <InfoValue>{formatValue(drug.name)}</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>剂量</InfoLabel>
-              <InfoValue>{drug.dosage}{drug.unit}</InfoValue>
+              <InfoValue>
+                {drug.dosage !== undefined && drug.dosage !== null
+                  ? `${drug.dosage}${drug.unit || ''}`
+                  : '-'}
+              </InfoValue>
             </InfoItem>
+            {drug?.indication && (
+              <InfoItemFull>
+                <InfoLabel>适应症</InfoLabel>
+                <InfoValue>{drug.indication}</InfoValue>
+              </InfoItemFull>
+            )}
+            {drug?.plan && (
+              <InfoItemFull>
+                <InfoLabel>用药计划</InfoLabel>
+                <InfoValue>{drug.plan}</InfoValue>
+              </InfoItemFull>
+            )}
           </InfoList>
         </InfoCard>
       </PatientDrugInfo>
