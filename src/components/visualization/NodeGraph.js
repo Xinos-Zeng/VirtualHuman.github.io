@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import * as d3 from 'd3';
-import { useVirtualHuman, NODE_STATES, SIMULATION_STEPS } from '../../context/VirtualHumanContext';
+import { useVirtualHuman, NODE_STATES } from '../../context/VirtualHumanContext';
 
 const Container = styled.div`
   position: relative;
@@ -46,38 +46,6 @@ const FilterButton = styled.button`
   }
 `;
 
-const SimulationButton = styled.button`
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 10px 20px;
-  border-radius: 20px;
-  border: none;
-  background-color: ${props => props.simulating ? '#f44336' : '#4caf50'};
-  color: white;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  transition: all 0.2s ease;
-  z-index: 10;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-
-  &:hover {
-    background-color: ${props => props.simulating ? '#d32f2f' : '#388e3c'};
-  }
-`;
-
-const SimulationStatus = styled.div`
-  position: absolute;
-  top: 60px;
-  right: 10px;
-  padding: 10px;
-  border-radius: 8px;
-  background-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  font-size: 14px;
-  z-index: 10;
-`;
 
 // 添加缩放控制器
 const ZoomControls = styled.div`
@@ -177,19 +145,6 @@ const getNodeSize = (type) => {
 
 // 所有节点都使用圆形，不再使用D3形状
 
-// 获取模拟状态文本
-const getSimulationStepText = (step) => {
-  switch(step) {
-    case SIMULATION_STEPS.READY: return '准备开始模拟';
-    case SIMULATION_STEPS.ROOT_MESSAGE: return '根节点产生信息';
-    case SIMULATION_STEPS.ORGAN_MESSAGE: return '器官层产生信息';
-    case SIMULATION_STEPS.TISSUE_MESSAGE: return '组织层产生信息';
-    case SIMULATION_STEPS.CELL_MESSAGE: return '细胞层产生信息';
-    case SIMULATION_STEPS.TARGET_MESSAGE: return '靶点层产生信息';
-    case SIMULATION_STEPS.COMPLETED: return '模拟完成';
-    default: return '模拟中...';
-  }
-};
 
 const NodeGraph = () => {
   const svgRef = useRef(null);
@@ -206,11 +161,8 @@ const NodeGraph = () => {
     setInfoPanelVisible,
     // 模拟相关
     isSimulating,
-    startSimulation,
-    stopSimulation,
     getNodeBubble,
-    simulationStep,
-    SIMULATION_STEPS
+    simulationStep
   } = useVirtualHuman();
   
   // 存储当前的缩放和平移状态
@@ -572,18 +524,6 @@ const NodeGraph = () => {
     }
   };
   
-  // 处理模拟按钮点击
-  const handleSimulationToggle = () => {
-    console.log("点击模拟按钮");
-    if (isSimulating) {
-      console.log("停止模拟");
-      stopSimulation();
-    } else {
-      console.log("开始模拟");
-      startSimulation();
-    }
-  };
-  
   return (
     <Container>
       <FilterContainer>
@@ -618,21 +558,6 @@ const NodeGraph = () => {
           靶点
         </FilterButton>
       </FilterContainer>
-      
-      {/* 添加模拟控制按钮 */}
-      <SimulationButton 
-        onClick={handleSimulationToggle}
-        simulating={isSimulating}
-      >
-        {isSimulating ? "停止模拟" : "开始模拟"}
-      </SimulationButton>
-      
-      {/* 显示模拟状态 */}
-      {isSimulating && (
-        <SimulationStatus>
-          当前状态: {getSimulationStepText(simulationStep)}
-        </SimulationStatus>
-      )}
       
       <SVGContainer ref={svgRef} />
       

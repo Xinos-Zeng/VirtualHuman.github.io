@@ -2,12 +2,14 @@ import React from 'react';
 import styled from 'styled-components';
 import NodeGraph from '../components/visualization/NodeGraph';
 import InfoPanel from '../components/common/InfoPanel';
+import ControlPanel from '../components/common/ControlPanel';
 import { useVirtualHuman } from '../context/VirtualHumanContext';
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   padding: 20px;
+  padding-left: 60px; /* 为左侧控制栏的收起按钮留出空间 */
   position: relative;
   flex-grow: 1;
   height: calc(100vh - 40px);
@@ -164,19 +166,23 @@ const HomePage = () => {
   };
 
   return (
-    <Container>
-      <Header>
-        <Title>
-          <TitleIcon>🧬</TitleIcon>
-          虚拟人类
-        </Title>
-        
-        {/* 显示模拟状态 */}
-        <SimulationStatus simulating={isSimulating}>
-          <StatusDot simulating={isSimulating} />
-          {isSimulating ? "模拟进行中..." : "模拟未开始"}
-        </SimulationStatus>
-      </Header>
+    <>
+      {/* 左侧控制栏 */}
+      <ControlPanel />
+      
+      <Container>
+        <Header>
+          <Title>
+            <TitleIcon>🧬</TitleIcon>
+            虚拟人类
+          </Title>
+          
+          {/* 显示模拟状态 */}
+          <SimulationStatus simulating={isSimulating}>
+            <StatusDot simulating={isSimulating} />
+            {isSimulating ? "模拟进行中..." : "模拟未开始"}
+          </SimulationStatus>
+        </Header>
 
       <PatientDrugInfo>
         <InfoCard>
@@ -268,6 +274,7 @@ const HomePage = () => {
         />
       </MainContent>
     </Container>
+    </>
   );
 };
 

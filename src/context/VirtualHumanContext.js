@@ -291,6 +291,7 @@ export const VirtualHumanProvider = ({ children }) => {
   const [simulationStep, setSimulationStep] = useState(SIMULATION_STEPS.READY);
   const [activeConnections, setActiveConnections] = useState([]);
   const [nodeBubbles, setNodeBubbles] = useState({});
+  const [simulationMode, setSimulationMode] = useState('mock'); // 'mock' or 'uploaded'
   
   // 使用ref存储定时器ID，便于清除
   const timerRef = useRef(null);
@@ -684,9 +685,9 @@ export const VirtualHumanProvider = ({ children }) => {
     }
   };
 
-  // 开始模拟
+  // 开始模拟（使用模拟数据）
   const startSimulation = () => {
-    console.log("开始模拟...");
+    console.log("开始模拟数据模拟...");
     
     // 清除可能存在的定时器
     if (timerRef.current) {
@@ -712,6 +713,7 @@ export const VirtualHumanProvider = ({ children }) => {
     });
     
     setIsSimulating(true);
+    setSimulationMode('mock');
     setSimulationStep(SIMULATION_STEPS.READY);
     setActiveConnections([]);
     setNodeBubbles({});
@@ -747,6 +749,87 @@ export const VirtualHumanProvider = ({ children }) => {
     setNodeBubbles({});
   };
 
+  // 使用上传的数据开始模拟
+  const startUploadedSimulation = (uploadedJson) => {
+    console.log("开始上传数据模拟...");
+    
+    try {
+      // 清除可能存在的定时器
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+
+      // 解析上传的数据
+      // 注意：上传的JSON可能没有node_meta字段，使用空对象作为默认值
+      const parsed = parseAgentLogs(uploadedJson);
+      const hierarchy = buildDesignHierarchy(parsed);
+      const meta = parsed.nodeMeta || {}; // 兼容没有node_meta的情况
+      const graphData = buildGraphDataFromHierarchy(hierarchy, meta);
+      const originalInput = parsed.originalInput || null;
+      const patientInfo = buildPatientInfoFromOriginalInput(originalInput, parsed.sessionId);
+      const drugInfo = buildDrugInfoFromOriginalInput(originalInput);
+      const nodesWithRootInfo = applyRootAgentData(
+        graphData?.nodes || [],
+        patientInfo,
+        drugInfo,
+        originalInput
+      );
+
+      // 更新agentLogMap
+      setAgentLogMap(parsed.nodeDetails || {});
+
+      if (graphData) {
+        const resolvedPatient = patientInfo
+          ? { ...graphData.patient, ...patientInfo }
+          : graphData.patient;
+        const resolvedDrug = drugInfo
+          ? { ...graphData.drug, ...drugInfo }
+          : graphData.drug;
+
+        const resolvedRootId =
+          graphData.rootNodeId ||
+          nodesWithRootInfo.find(node => node.type === 'root')?.id ||
+          null;
+
+        // 重置所有节点为未激活状态
+        const resetNodes = nodesWithRootInfo.map(node => {
+          const isRoot = node.id === resolvedRootId;
+          return {
+            ...node,
+            status: NODE_STATES.INACTIVE,
+            isActivated: false,
+            isRevealed: Boolean(isRoot)
+          };
+        });
+
+        setData({
+          ...graphData,
+          patient: resolvedPatient,
+          drug: resolvedDrug,
+          nodes: resetNodes
+        });
+        setRootNodeId(resolvedRootId);
+      }
+
+      setIsSimulating(true);
+      setSimulationMode('uploaded');
+      setSimulationStep(SIMULATION_STEPS.READY);
+      setActiveConnections([]);
+      setNodeBubbles({});
+
+      // 延迟1秒后开始第一步
+      console.log("设置定时器，1秒后开始上传数据模拟");
+      timerRef.current = setTimeout(() => {
+        executeSimulationStep(SIMULATION_STEPS.ROOT_MESSAGE);
+      }, 1000);
+
+    } catch (error) {
+      console.error('启动上传数据模拟失败:', error);
+      alert('解析上传数据失败: ' + error.message);
+    }
+  };
+
   // 在组件卸载时清除定时器
   useEffect(() => {
     return () => {
@@ -776,8 +859,10 @@ export const VirtualHumanProvider = ({ children }) => {
     getActiveConnections,
     startSimulation,
     stopSimulation,
+    startUploadedSimulation,
     getNodeBubble,
     simulationStep,
+    simulationMode,
     SIMULATION_STEPS,
     getAgentLogById
   };
