@@ -1,0 +1,239 @@
+{
+  "session_id": "vh_session_sample_upload",
+  "total_logs": 6,
+  "generated_at": "2024-01-01T10:00:00Z",
+  "logs": [
+    {
+      "log_id": "log_0_root",
+      "session_id": "vh_session_sample_upload",
+      "timestamp": "2024-01-01T10:00:01Z",
+      "level": 0,
+      "level_name": "根节点层",
+      "agent_id": "root_patient_drug",
+      "agent_name": "患者/药物信息",
+      "agent_type": "root",
+      "phase": "complete",
+      "input_data": {
+        "original_input": {
+          "patient": "65岁，男性，2型糖尿病患者，计划使用二甲双胍500mg治疗",
+          "drug": "二甲双胍",
+          "disease": "2型糖尿病"
+        }
+      },
+      "output_data": {
+        "round1_analysis": "患者基本信息已接收，准备进行药物分析。65岁男性2型糖尿病患者，计划使用二甲双胍500mg进行治疗。",
+        "round2_analysis": {
+          "llm_analysis": {
+            "content": "二甲双胍是治疗2型糖尿病的一线药物，主要通过抑制肝脏葡萄糖生成和改善胰岛素敏感性发挥作用。",
+            "confidence": 0.95
+          },
+          "mcp_analysis": {
+            "tool_queries": ["二甲双胍作用机制"],
+            "tool_result": "二甲双胍主要作用于肝脏、肌肉和肠道。",
+            "raw_tool_results": []
+          }
+        }
+      },
+      "analysis_mode": "two_round",
+      "activate_next_level": true,
+      "execution_time": 2.5,
+      "error_message": null
+    },
+    {
+      "log_id": "log_1_organ_liver",
+      "session_id": "vh_session_sample_upload",
+      "timestamp": "2024-01-01T10:00:03Z",
+      "level": 1,
+      "level_name": "器官层",
+      "agent_id": "organ_liver",
+      "agent_name": "肝脏",
+      "agent_type": "organ",
+      "phase": "complete",
+      "input_data": {
+        "original_input": {
+          "patient": "65岁，男性，2型糖尿病患者，计划使用二甲双胍500mg治疗",
+          "drug": "二甲双胍",
+          "disease": "2型糖尿病"
+        },
+        "parent_analysis": {
+          "agent_id": "root_patient_drug"
+        }
+      },
+      "output_data": {
+        "round1_analysis": "肝脏接收到二甲双胍，开始抑制葡萄糖生成。预计肝脏糖异生降低30-40%。",
+        "round2_analysis": {
+          "llm_analysis": {
+            "content": "肝脏是二甲双胍的主要作用部位之一，通过激活AMPK通路抑制糖异生关键酶。",
+            "confidence": 0.92
+          },
+          "mcp_analysis": {
+            "tool_queries": ["二甲双胍对肝脏的影响"],
+            "tool_result": "二甲双胍可降低肝脏葡萄糖输出，改善胰岛素抵抗。",
+            "raw_tool_results": []
+          }
+        }
+      },
+      "analysis_mode": "two_round",
+      "activate_next_level": true,
+      "execution_time": 1.8,
+      "error_message": null
+    },
+    {
+      "log_id": "log_2_tissue_liver_parenchyma",
+      "session_id": "vh_session_sample_upload",
+      "timestamp": "2024-01-01T10:00:04Z",
+      "level": 2,
+      "level_name": "组织层",
+      "agent_id": "tissue_liver_liver",
+      "agent_name": "肝实质组织",
+      "agent_type": "tissue",
+      "phase": "complete",
+      "input_data": {
+        "original_input": {
+          "patient": "65岁，男性，2型糖尿病患者，计划使用二甲双胍500mg治疗",
+          "drug": "二甲双胍",
+          "disease": "2型糖尿病"
+        },
+        "parent_analysis": {
+          "agent_id": "organ_liver"
+        }
+      },
+      "output_data": {
+        "round1_analysis": "肝实质组织吸收二甲双胍，细胞内药物浓度逐渐升高，AMPK活性增强。",
+        "round2_analysis": {
+          "llm_analysis": {
+            "content": "肝实质细胞内二甲双胍浓度达到有效水平，开始发挥降糖作用。",
+            "confidence": 0.88
+          },
+          "mcp_analysis": {
+            "tool_queries": [],
+            "tool_result": "",
+            "raw_tool_results": []
+          }
+        }
+      },
+      "analysis_mode": "two_round",
+      "activate_next_level": true,
+      "execution_time": 1.2,
+      "error_message": null
+    },
+    {
+      "log_id": "log_3_cell_liver",
+      "session_id": "vh_session_sample_upload",
+      "timestamp": "2024-01-01T10:00:05Z",
+      "level": 3,
+      "level_name": "细胞层",
+      "agent_id": "cell_liver_cell_liver",
+      "agent_name": "肝细胞",
+      "agent_type": "cell",
+      "phase": "complete",
+      "input_data": {
+        "original_input": {
+          "patient": "65岁，男性，2型糖尿病患者，计划使用二甲双胍500mg治疗",
+          "drug": "二甲双胍",
+          "disease": "2型糖尿病"
+        },
+        "parent_analysis": {
+          "agent_id": "tissue_liver_liver"
+        }
+      },
+      "output_data": {
+        "round1_analysis": "肝细胞内二甲双胍通过有机阳离子转运体进入细胞，抑制线粒体复合物I。",
+        "round2_analysis": {
+          "llm_analysis": {
+            "content": "细胞内AMP/ATP比值升高，激活AMPK信号通路。",
+            "confidence": 0.90
+          },
+          "mcp_analysis": {
+            "tool_queries": [],
+            "tool_result": "",
+            "raw_tool_results": []
+          }
+        }
+      },
+      "analysis_mode": "two_round",
+      "activate_next_level": true,
+      "execution_time": 1.5,
+      "error_message": null
+    },
+    {
+      "log_id": "log_4_target_ampk",
+      "session_id": "vh_session_sample_upload",
+      "timestamp": "2024-01-01T10:00:06Z",
+      "level": 4,
+      "level_name": "靶点层",
+      "agent_id": "target_liver_target_ampk",
+      "agent_name": "AMPK靶点",
+      "agent_type": "target",
+      "phase": "complete",
+      "input_data": {
+        "original_input": {
+          "patient": "65岁，男性，2型糖尿病患者，计划使用二甲双胍500mg治疗",
+          "drug": "二甲双胍",
+          "disease": "2型糖尿病"
+        },
+        "parent_analysis": {
+          "agent_id": "cell_liver_cell_liver"
+        }
+      },
+      "output_data": {
+        "round1_analysis": "AMPK被激活，磷酸化下游靶点，抑制糖异生关键酶PEPCK和G6Pase的表达。",
+        "round2_analysis": {
+          "llm_analysis": {
+            "content": "AMPK激活导致肝脏葡萄糖生成显著降低，血糖水平下降。治疗效果良好。",
+            "confidence": 0.93
+          },
+          "mcp_analysis": {
+            "tool_queries": ["AMPK在糖代谢中的作用"],
+            "tool_result": "AMPK是能量代谢的关键调节因子，激活后抑制糖异生。",
+            "raw_tool_results": []
+          }
+        }
+      },
+      "analysis_mode": "two_round",
+      "activate_next_level": false,
+      "execution_time": 1.8,
+      "error_message": null
+    },
+    {
+      "log_id": "log_1_organ_gut",
+      "session_id": "vh_session_sample_upload",
+      "timestamp": "2024-01-01T10:00:07Z",
+      "level": 1,
+      "level_name": "器官层",
+      "agent_id": "organ_gut",
+      "agent_name": "肠道",
+      "agent_type": "organ",
+      "phase": "complete",
+      "input_data": {
+        "original_input": {
+          "patient": "65岁，男性，2型糖尿病患者，计划使用二甲双胍500mg治疗",
+          "drug": "二甲双胍",
+          "disease": "2型糖尿病"
+        },
+        "parent_analysis": {
+          "agent_id": "root_patient_drug"
+        }
+      },
+      "output_data": {
+        "round1_analysis": "肠道吸收二甲双胍，部分在肠道局部发挥作用，增加GLP-1分泌。",
+        "round2_analysis": {
+          "llm_analysis": {
+            "content": "二甲双胍在肠道的局部作用可能占其降糖作用的30%左右。",
+            "confidence": 0.85
+          },
+          "mcp_analysis": {
+            "tool_queries": ["二甲双胍对肠道的影响"],
+            "tool_result": "二甲双胍可增加肠道GLP-1分泌，改善糖代谢。",
+            "raw_tool_results": []
+          }
+        }
+      },
+      "analysis_mode": "two_round",
+      "activate_next_level": true,
+      "execution_time": 1.6,
+      "error_message": null
+    }
+  ]
+}
+
