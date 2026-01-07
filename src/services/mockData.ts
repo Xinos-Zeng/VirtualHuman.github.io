@@ -1,4 +1,63 @@
-import { AgentNode, InteractionEdge, SimulationState } from '../types/Agent';
+import { AgentNode, InteractionEdge, SimulationState, Literature } from '../types/Agent';
+
+// 模拟文献数据
+const mockLiterature: Record<string, Literature[]> = {
+  'organ-heart': [
+    {
+      title: 'Cardiac Cell Regeneration and Myocardial Infarction',
+      authors: 'Smith J, Johnson R, et al.',
+      journal: 'Nature Medicine',
+      year: 2023,
+      doi: '10.1038/nm.2023.001',
+      summary: 'Recent advances in cardiac regeneration show promising results in post-infarction recovery through stem cell therapy.'
+    },
+    {
+      title: 'Mechanisms of Heart Failure: Molecular Insights',
+      authors: 'Chen L, Wang X, et al.',
+      journal: 'Circulation Research',
+      year: 2022,
+      summary: 'Novel molecular pathways identified in heart failure progression, highlighting potential therapeutic targets.'
+    }
+  ],
+  'organ-liver': [
+    {
+      title: 'Hepatic Regeneration and Metabolic Adaptation',
+      authors: 'Zhang Y, Liu M, et al.',
+      journal: 'Cell Metabolism',
+      year: 2023,
+      doi: '10.1016/j.cmet.2023.001',
+      summary: 'Liver demonstrates remarkable regenerative capacity through metabolic reprogramming and cellular plasticity.'
+    }
+  ],
+  'organ-kidney': [
+    {
+      title: 'Renal Function and Filtration Dynamics',
+      authors: 'Brown A, Davis K, et al.',
+      journal: 'Kidney International',
+      year: 2023,
+      summary: 'Advanced imaging reveals real-time kidney filtration mechanisms and their regulation under stress conditions.'
+    }
+  ],
+  'organ-Intestine': [
+    {
+      title: 'Gut Microbiome and Systemic Health',
+      authors: 'Garcia M, Rodriguez P, et al.',
+      journal: 'Science',
+      year: 2023,
+      doi: '10.1126/science.2023.001',
+      summary: 'Intestinal microbiota plays crucial role in immune regulation and metabolic homeostasis.'
+    }
+  ],
+  'organ-brain': [
+    {
+      title: 'Neural Plasticity and Cognitive Function',
+      authors: 'Wilson T, Anderson S, et al.',
+      journal: 'Nature Neuroscience',
+      year: 2023,
+      summary: 'CNS demonstrates adaptive plasticity in response to environmental stimuli and learning experiences.'
+    }
+  ]
+};
 
 // 初始数据生成器
 export const MockDataService = {
@@ -23,7 +82,8 @@ export const MockDataService = {
         status: 'NORMAL',
         metrics: { activity: 0.5, stress: 0.1 },
         childrenIds: [],
-        description: `${organ.name}运行正常，各项指标平稳。`
+        description: `${organ.name}运行正常，各项指标平稳。`,
+        literature: mockLiterature[organ.id] || []
       };
 
       // 2. 为每个器官创建组织 (Level 2)
@@ -37,7 +97,17 @@ export const MockDataService = {
           status: 'NORMAL',
           metrics: { activity: 0.5, stress: 0.1 },
           parentId: organ.id,
-          childrenIds: []
+          childrenIds: [],
+          description: `${organ.name}的组织层级结构，负责协调细胞活动。`,
+          literature: [
+            {
+              title: `Tissue Organization in ${organ.name}`,
+              authors: 'Research Team',
+              journal: 'Tissue Biology',
+              year: 2023,
+              summary: `Study on structural organization and functional coordination of ${organ.name} tissue components.`
+            }
+          ]
         };
         nodes[organ.id].childrenIds?.push(tissueId);
 
@@ -51,7 +121,17 @@ export const MockDataService = {
                 status: 'NORMAL',
                 metrics: { activity: 0.5, stress: 0.1 },
                 parentId: tissueId,
-                childrenIds: []
+                childrenIds: [],
+                description: `${organ.name}的功能性细胞单元，执行特定的生理功能。`,
+                literature: [
+                  {
+                    title: `Cellular Mechanisms in ${organ.name}`,
+                    authors: 'Cell Biology Lab',
+                    journal: 'Cell Research',
+                    year: 2023,
+                    summary: `Investigation of cellular processes and molecular mechanisms in ${organ.name} cells.`
+                  }
+                ]
             };
             nodes[tissueId].childrenIds?.push(cellId);
         }

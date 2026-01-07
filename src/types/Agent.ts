@@ -4,6 +4,15 @@ export type AgentLevel = 'ORGAN' | 'TISSUE' | 'CELL' | 'TARGET';
 // 定义健康状态（对应视觉设计的颜色）
 export type HealthStatus = 'NORMAL' | 'WARNING' | 'CRITICAL';
 
+export interface Literature {
+  title: string;             // 文献标题
+  authors: string;           // 作者
+  journal: string;           // 期刊/来源
+  year: number;              // 发表年份
+  doi?: string;              // DOI
+  summary: string;           // 摘要/关键发现
+}
+
 export interface AgentNode {
   id: string;                // 唯一标识 (e.g., "organ-liver-01")
   name: string;              // 显示名称 (e.g., "肝脏")
@@ -17,6 +26,7 @@ export interface AgentNode {
   };
 
   description?: string;      // 简短描述 (Hover 时显示)
+  literature?: Literature[]; // 相关文献列表
   
   // 层级关系 (Level 1 点击进入 Level 2 的依据)
   childrenIds?: string[];    // 下级节点 ID 列表

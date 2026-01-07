@@ -1,10 +1,49 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SimulationProvider, useSimulation } from './context/SimulationContext';
-import { TopologyGraph } from './components/level2/TopologyGraph';
 import { HumanBody } from './components/level1/HumanBody';
+import { HierarchyView } from './components/level2/HierarchyView';
+import { DebugPanel } from './components/debug/DebugPanel';
 import './App.css';
 
-type ViewMode = 'LEVEL1' | 'LEVEL2';
+type ViewMode = 'LEVEL1' | 'DEBUG' | 'HIERARCHY';
+
+interface HierarchyState {
+  nodeId: string;
+  history: string[]; // 用于追踪导航历史
+}
+
+type TransitionState =
+  | { active: false }
+  | { active: true; nodeId: string; origin: { x: number; y: number } };
+
+// 器官背景图路径映射（用于过渡动画与二级窗口背景）
+const organBackgrounds: Record<string, string> = {
+  'organ-heart': '/assets/organs/heart-bg.jpg',
+  'organ-liver': '/assets/organs/liver-bg.jpg',
+  'organ-kidney': '/assets/organs/kidney-bg.jpg',
+  'organ-Intestine': '/assets/organs/intestine-bg.jpg',
+  'organ-brain': '/assets/organs/brain-bg.jpg',
+};
+
+const HierarchyTransitionOverlay: React.FC<{ state: TransitionState }> = ({ state }) => {
+  if (!state.active) return null;
+  const bg = organBackgrounds[state.nodeId];
+  return (
+    <div className="transition-overlay" aria-hidden="true">
+      <div className="transition-backdrop" />
+      <div
+        className="transition-portal"
+        style={
+          {
+            '--x': `${state.origin.x}px`,
+            '--y': `${state.origin.y}px`,
+            backgroundImage: bg ? `url(${bg})` : undefined,
+          } as React.CSSProperties
+        }
+      />
+    </div>
+  );
+};
 
 const CriticalModal: React.FC<{
   nodeName: string;
@@ -21,7 +60,7 @@ const CriticalModal: React.FC<{
           <h2 style={{ margin: '0 0 12px 0', color: '#fff' }}>{nodeName} Malfunction</h2>
           <p style={{ color: '#9ca3af', lineHeight: 1.6, marginBottom: 24 }}>
             Critical instability detected in {nodeName}. Immediate intervention is recommended. 
-            Please examine the causal topology graph to identify the root cause (e.g., viral agents or tissue damage).
+            Please examine the hierarchy view to identify the root cause.
           </p>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
              <button className="btn btn-critical" onClick={onClose}>ACKNOWLEDGE</button>
@@ -32,38 +71,63 @@ const CriticalModal: React.FC<{
   );
 };
 
-// Level 1: 3D 宏观人体
-const Level1View: React.FC<{ switchToL2: () => void }> = ({ switchToL2 }) => {
+// Level 1: 器官宏观视图
+const Level1View: React.FC<{ 
+  onDebug: () => void; 
+  onEnterHierarchy: (nodeId: string, origin?: { x: number; y: number }) => void;
+}> = ({ onDebug, onEnterHierarchy }) => {
   const { state, selectNode } = useSimulation();
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [criticalAcknowledged, setCriticalAcknowledged] = useState<Set<string>>(new Set());
 
   const organs = useMemo(() => Object.values(state.nodes).filter(n => n.level === 'ORGAN'), [state.nodes]);
   const selectedOrganId = state.selectedNodeId || null;
   const selectedOrgan = selectedOrganId ? state.nodes[selectedOrganId] : null;
 
-  const showModal = selectedOrgan && selectedOrgan.status === 'CRITICAL' && !dismissedIds.includes(selectedOrgan.id);
+  const showModal = selectedOrgan && selectedOrgan.status === 'CRITICAL' && !criticalAcknowledged.has(selectedOrgan.id);
   const closeModal = () => {
-    if (selectedOrgan) setDismissedIds(prev => [...prev, selectedOrgan.id]);
+    if (selectedOrgan) {
+      setCriticalAcknowledged(prev => new Set(prev).add(selectedOrgan.id));
+    }
   };
 
+  // 当节点状态变为非CRITICAL时，清除其acknowledged标记
   useEffect(() => {
-    if (selectedOrgan && selectedOrgan.status === 'CRITICAL') {
-      setDismissedIds(prev => prev.filter(id => id !== selectedOrgan.id));
-    }
-  }, [selectedOrgan]);
+    const criticalNodeIds = new Set(
+      Object.values(state.nodes)
+        .filter(n => n.status === 'CRITICAL')
+        .map(n => n.id)
+    );
+    
+    setCriticalAcknowledged(prev => {
+      const newSet = new Set<string>();
+      prev.forEach(id => {
+        if (criticalNodeIds.has(id)) {
+          newSet.add(id);
+        }
+      });
+      return newSet;
+    });
+  }, [state.nodes]);
 
   return (
     <div className="page fade-in">
       <div className="topbar">
         <h1 className="title">Virtual Human <span style={{fontSize: '0.6em', opacity: 0.5}}>// LEVEL 1: MACRO</span></h1>
-        {/* Topbar actions if needed */}
+        <button className="btn btn-secondary" onClick={onDebug}>
+          DEBUG CONSOLE
+        </button>
       </div>
 
       <div className="grid grid-2">
-        <div className="panel" style={{ padding: 0, overflow: 'hidden', background: '#000' }}>
-          <HumanBody organs={organs} selectedId={selectedOrganId} onSelect={selectNode} />
+        <div className="panel panel-ghost">
+          <HumanBody 
+            organs={organs} 
+            selectedId={selectedOrganId} 
+            onSelect={selectNode}
+            onDoubleClick={onEnterHierarchy}
+          />
           <div style={{ position: 'absolute', bottom: 20, left: 20, color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-            INTERACTION: LEFT CLICK TO SELECT • RIGHT CLICK TO ROTATE • SCROLL TO ZOOM
+            单击选择 • 双击放大进入 • 滚轮缩放 • 拖动查看
           </div>
         </div>
 
@@ -71,48 +135,105 @@ const Level1View: React.FC<{ switchToL2: () => void }> = ({ switchToL2 }) => {
           <h3 className="section-title">DIAGNOSTIC REPORT</h3>
           
           {selectedOrgan ? (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
+              <div style={{ marginBottom: '24px' }}>
                 <h2 style={{ margin: '0 0 8px 0', fontSize: '28px' }}>{selectedOrgan.name}</h2>
                 <div className={`status-badge ${selectedOrgan.status === 'CRITICAL' ? 'critical' : ''}`} 
                      style={{ 
                        color: selectedOrgan.status === 'NORMAL' ? 'var(--primary)' : 
-                              selectedOrgan.status === 'WARNING' ? 'var(--warning)' : 'var(--critical)' 
+                              selectedOrgan.status === 'WARNING' ? 'var(--warning)' : 'var(--critical)',
+                       background: selectedOrgan.status === 'NORMAL' ? 'rgba(56, 189, 248, 0.15)' :
+                                  selectedOrgan.status === 'WARNING' ? 'rgba(250, 204, 21, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                       border: selectedOrgan.status === 'NORMAL' ? '1px solid rgba(56, 189, 248, 0.3)' :
+                              selectedOrgan.status === 'WARNING' ? '1px solid rgba(250, 204, 21, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
                      }}>
                   ● {selectedOrgan.status} STATUS
                 </div>
               </div>
 
-              <div className="info-row">
-                <span>Activity Level</span>
-                <span className="info-value">{(selectedOrgan.metrics.activity * 100).toFixed(1)}%</span>
-              </div>
-              <div className="info-row">
-                <span>Stress Load</span>
-                <span className="info-value">{(selectedOrgan.metrics.stress * 100).toFixed(1)}%</span>
-              </div>
-              
-              <div className="report-box">
-                <div style={{ color: 'var(--text-dim)', marginBottom: '8px', fontSize: '12px' }}>CLINICAL CONTEXT</div>
-                {selectedOrgan.description || 'No specific clinical description available for this organ.'}
-                <br /><br />
-                <div style={{ color: 'var(--text-dim)', marginBottom: '8px', fontSize: '12px' }}>RECENT FINDINGS</div>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.
+              {/* 状态信息区 */}
+              <div className="info-section">
+                <div className="info-section-header">
+                  <span className="info-section-icon">📊</span>
+                  <span className="info-section-title">Status Information</span>
+                </div>
+                <div className="info-section-content">
+                  <div className="status-info-grid">
+                    <div className="status-metric">
+                      <div className="status-metric-label">Activity</div>
+                      <div className="status-metric-value">{(selectedOrgan.metrics.activity * 100).toFixed(1)}%</div>
+                    </div>
+                    <div className="status-metric">
+                      <div className="status-metric-label">Stress</div>
+                      <div className="status-metric-value">{(selectedOrgan.metrics.stress * 100).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  {selectedOrgan.description && (
+                    <div className="status-description">
+                      {selectedOrgan.description}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
-                <button className="btn" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }} onClick={switchToL2}>
-                  <span>Analyze Causality</span>
+              {/* 文献信息区 */}
+              <div className="info-section">
+                <div className="info-section-header">
+                  <span className="info-section-icon">📚</span>
+                  <span className="info-section-title">Related Literature</span>
+                </div>
+                <div className="info-section-content">
+                  {selectedOrgan.literature && selectedOrgan.literature.length > 0 ? (
+                    <div className="literature-list">
+                      {selectedOrgan.literature.map((lit, idx) => (
+                        <div key={idx} className="literature-item">
+                          <div className="literature-title">{lit.title}</div>
+                          <div className="literature-meta">
+                            <span className="literature-meta-item">✍️ {lit.authors}</span>
+                            <span className="literature-meta-item">📖 {lit.journal}</span>
+                            <span className="literature-meta-item">📅 {lit.year}</span>
+                          </div>
+                          <div className="literature-summary">{lit.summary}</div>
+                          {lit.doi && (
+                            <a 
+                              href={`https://doi.org/${lit.doi}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="literature-doi"
+                            >
+                              🔗 DOI: {lit.doi}
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      <div className="empty-state-icon">📄</div>
+                      <div>No literature data available</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+                <button 
+                  className="btn" 
+                  style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }} 
+                  onClick={() => onEnterHierarchy(selectedOrgan.id)}
+                >
+                  <span>Zoom In (Double-click)</span>
                   <span>→</span>
                 </button>
                 <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: 'var(--text-dim)' }}>
-                  Enter Level 2 to view cellular topology
+                  Enter hierarchy view to explore sub-levels
                 </div>
               </div>
             </div>
           ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontStyle: 'italic' }}>
-              Select an organ from the 3D view to see details.
+            <div className="empty-state" style={{ height: '100%' }}>
+              <div className="empty-state-icon">👆</div>
+              <div>Select an organ to see details.</div>
             </div>
           )}
         </div>
@@ -125,117 +246,140 @@ const Level1View: React.FC<{ switchToL2: () => void }> = ({ switchToL2 }) => {
   );
 };
 
-// Level 2: 拓扑视图
-const Level2View: React.FC<{ switchToL1: () => void }> = ({ switchToL1 }) => {
-  const { state, updateNodeStatus, selectNode } = useSimulation();
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
-  const activeCenterId = state.selectedNodeId || Object.keys(state.nodes).find(id => state.nodes[id].level === 'ORGAN');
+// Hierarchy View: 递归层级视图
+const HierarchyViewWrapper: React.FC<{
+  hierarchyState: HierarchyState;
+  onBack: () => void;
+  onNavigate: (nodeId: string) => void;
+}> = ({ hierarchyState, onBack, onNavigate }) => {
+  const { state } = useSimulation();
+  
+  const currentNode = state.nodes[hierarchyState.nodeId];
 
-  const topologyData = useMemo(() => {
-    if (!activeCenterId || !state.nodes[activeCenterId]) return null;
+  // 向上追溯到器官节点，确保二级窗口背景一直是“器官图”
+  const backgroundOrganId = useMemo(() => {
+    if (!currentNode) return undefined;
+    let cursor = currentNode;
+    let guard = 0;
+    while (cursor.level !== 'ORGAN' && cursor.parentId && guard < 10) {
+      const parent = state.nodes[cursor.parentId];
+      if (!parent) break;
+      cursor = parent;
+      guard += 1;
+    }
+    return cursor.level === 'ORGAN' ? cursor.id : undefined;
+  }, [currentNode, state.nodes]);
 
-    const centerNode = state.nodes[activeCenterId];
-    const relatedNodeIds = new Set<string>();
-    centerNode.childrenIds?.forEach(id => relatedNodeIds.add(id));
-    state.edges.forEach(edge => {
-      if (edge.sourceId === activeCenterId) relatedNodeIds.add(edge.targetId);
-      if (edge.targetId === activeCenterId) relatedNodeIds.add(edge.sourceId);
-    });
-
-    const relatedNodes = Array.from(relatedNodeIds)
+  const childNodes = useMemo(() => {
+    if (!currentNode || !currentNode.childrenIds) return [];
+    return currentNode.childrenIds
       .map(id => state.nodes[id])
       .filter(Boolean);
+  }, [currentNode, state.nodes]);
 
-    return { centerNode, relatedNodes, edges: state.edges };
-  }, [state, activeCenterId]);
+  if (!currentNode) {
+    return (
+      <div className="page fade-in">
+        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+          Node not found
+        </div>
+      </div>
+    );
+  }
 
-  const selectedNode = state.selectedNodeId ? state.nodes[state.selectedNodeId] : null;
-  const showModal = selectedNode && selectedNode.status === 'CRITICAL' && !dismissedIds.includes(selectedNode.id);
-  const closeModal = () => {
-    if (selectedNode) setDismissedIds(prev => [...prev, selectedNode.id]);
+  const handleDoubleClick = (childId: string) => {
+    const childNode = state.nodes[childId];
+    // 只有当子节点还有下级时才允许继续放大
+    if (childNode && childNode.childrenIds && childNode.childrenIds.length > 0) {
+      onNavigate(childId);
+    }
   };
 
-  useEffect(() => {
-    if (selectedNode && selectedNode.status === 'CRITICAL') {
-      setDismissedIds(prev => prev.filter(id => id !== selectedNode.id));
-    }
-  }, [selectedNode]);
-
   return (
-    <div className="page fade-in">
-      <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button className="btn btn-secondary" onClick={switchToL1}>← BACK</button>
-          <h1 className="title">Level 2 <span style={{fontSize: '0.6em', opacity: 0.5}}>// MICRO TOPOLOGY</span></h1>
-        </div>
-      </div>
-      
-      <div className="grid grid-2r">
-        <div className="panel">
-          <h2 className="section-title">SYSTEM NODES</h2>
-          <div className="list">
-            {Object.values(state.nodes).map(node => (
-              <div 
-                key={node.id}
-                onClick={() => selectNode(node.id)}
-                className={`card card-${node.status.toLowerCase()} ${state.selectedNodeId === node.id ? 'card-selected' : ''}`}
-              >
-                <div style={{ fontWeight: 600, marginBottom: '4px' }}>{node.name}</div>
-                <div className="info-row" style={{ marginBottom: '8px' }}>
-                  <span>{node.level}</span>
-                  <span>Act: {node.metrics.activity.toFixed(2)}</span>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '5px', marginTop: '8px' }}>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '10px' }} onClick={(e) => { e.stopPropagation(); updateNodeStatus(node.id, 'NORMAL'); }}>N</button>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '10px' }} onClick={(e) => { e.stopPropagation(); updateNodeStatus(node.id, 'WARNING'); }}>W</button>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '10px' }} onClick={(e) => { e.stopPropagation(); updateNodeStatus(node.id, 'CRITICAL'); }}>C</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          {topologyData ? (
-            <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
-                <h3 className="section-title" style={{ fontSize: '18px' }}>{topologyData.centerNode.name}</h3>
-                <p style={{ color: 'var(--text-dim)', margin: 0 }}>{topologyData.centerNode.description}</p>
-              </div>
-              <TopologyGraph 
-                centerNode={topologyData.centerNode}
-                relatedNodes={topologyData.relatedNodes}
-                edges={topologyData.edges}
-                width={800} // Consider dynamic width
-                height={600} // Consider dynamic height
-                onNodeClick={selectNode}
-              />
-            </div>
-          ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
-              Select a node to view topology
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showModal && selectedNode && (
-        <CriticalModal nodeName={selectedNode.name} onClose={closeModal} />
-      )}
-    </div>
+    <HierarchyView
+      currentNode={currentNode}
+      childNodes={childNodes}
+      onNodeDoubleClick={handleDoubleClick}
+      onBack={onBack}
+      backgroundOrganId={backgroundOrganId}
+    />
   );
 };
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>('LEVEL1');
+  const [hierarchyState, setHierarchyState] = useState<HierarchyState>({
+    nodeId: '',
+    history: [],
+  });
+  const [transition, setTransition] = useState<TransitionState>({ active: false });
+
+  const handleEnterHierarchy = (nodeId: string, origin?: { x: number; y: number }) => {
+    const fallbackOrigin = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    };
+
+    const finalOrigin = origin || fallbackOrigin;
+    setTransition({ active: true, nodeId, origin: finalOrigin });
+
+    // 先播放“放大+虚化”过渡，再切换到二级界面
+    window.setTimeout(() => {
+      setHierarchyState({
+        nodeId,
+        history: [nodeId],
+      });
+      setView('HIERARCHY');
+    }, 420);
+
+    // 过渡层稍后移除（避免硬切）
+    window.setTimeout(() => {
+      setTransition({ active: false });
+    }, 700);
+  };
+
+  const handleNavigateHierarchy = (nodeId: string) => {
+    setHierarchyState(prev => ({
+      nodeId,
+      history: [...prev.history, nodeId],
+    }));
+  };
+
+  const handleBackHierarchy = () => {
+    setHierarchyState(prev => {
+      const newHistory = [...prev.history];
+      newHistory.pop();
+      
+      if (newHistory.length === 0) {
+        setView('LEVEL1');
+        return { nodeId: '', history: [] };
+      }
+      
+      return {
+        nodeId: newHistory[newHistory.length - 1],
+        history: newHistory,
+      };
+    });
+  };
 
   return (
     <SimulationProvider>
-      {view === 'LEVEL1' ? (
-        <Level1View switchToL2={() => setView('LEVEL2')} />
-      ) : (
-        <Level2View switchToL1={() => setView('LEVEL1')} />
+      <HierarchyTransitionOverlay state={transition} />
+      {view === 'LEVEL1' && (
+        <Level1View 
+          onDebug={() => setView('DEBUG')}
+          onEnterHierarchy={handleEnterHierarchy}
+        />
+      )}
+      {view === 'DEBUG' && (
+        <DebugPanel onBack={() => setView('LEVEL1')} />
+      )}
+      {view === 'HIERARCHY' && (
+        <HierarchyViewWrapper
+          hierarchyState={hierarchyState}
+          onBack={handleBackHierarchy}
+          onNavigate={handleNavigateHierarchy}
+        />
       )}
     </SimulationProvider>
   );

@@ -1,95 +1,224 @@
-// @ts-nocheck
-/// <reference types="@react-three/fiber" />
-import React, { useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { AgentNode } from '../../types/Agent';
-import { OrganMesh } from './OrganMesh';
+import bodyImg from '../../assets/body.png';
 
 interface HumanBodyProps {
   organs: AgentNode[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onDoubleClick?: (id: string, origin?: { x: number; y: number }) => void;
 }
 
-// 简单的器官摆放坐标（抽象位置，模拟人体躯干）
-const organPositions: Record<string, [number, number, number]> = {
-  'organ-heart': [0.2, 1.2, 0.2],    // 心脏：胸腔左侧（视觉右侧）
-  'organ-liver': [-0.3, 0.5, 0],     // 肝脏：腹部右侧（视觉左侧）
-  'organ-kidney': [0.4, 0, -0.2],    // 肾脏：后腹部
-  'organ-Intestine': [0, -0.8, 0],   // 肠道：下腹部
-  'organ-brain': [0, 2.8, 0],        // 大脑：头部
+type Position = { x: number; y: number };
+
+// 以图片百分比标注的节点坐标，后续可根据真实标注微调
+const organPositions: Record<string, Position> = {
+  'organ-brain': { x: 56, y: 8 },
+  'organ-heart': { x: 58, y: 28 },
+  'organ-liver': { x: 50, y: 34 },
+  'organ-kidney': { x: 65, y: 36 },
+  'organ-Intestine': { x: 55, y: 46 },
 };
 
-export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSelect }) => {
-  const organMeshes = useMemo(() => {
-    return organs.map(node => {
-      // 如果没有预定义坐标，则随机分布在躯干区域内
-      const pos = organPositions[node.id] || [
-        (Math.random() - 0.5) * 1, 
-        (Math.random() - 0.5) * 2, 
-        (Math.random() - 0.5) * 1
-      ];
-      return (
-        <OrganMesh
-          key={node.id}
-          node={node}
-          position={pos}
-          isSelected={selectedId === node.id}
-          onClick={onSelect}
-        />
-      );
-    });
-  }, [organs, selectedId, onSelect]);
+const statusColor = (status: AgentNode['status']) => {
+  switch (status) {
+    case 'CRITICAL':
+      return '#ef4444';
+    case 'WARNING':
+      return '#facc15';
+    default:
+      return '#38bdf8';
+  }
+};
+
+export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSelect, onDoubleClick }) => {
+  const [ratio, setRatio] = useState({ w: 441, h: 1104 }); // 默认尺寸，用于保持纵横比
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hoveredNode, setHoveredNode] = useState<AgentNode | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 滚轮缩放
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
+  }, []);
+
+  // 鼠标拖动
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 0) { // 左键
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    }
+  }, [position]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  }, [isDragging, dragStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // 重置视图
+  const handleReset = useCallback(() => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  // 处理节点悬停
+  const handleNodeHover = useCallback((node: AgentNode, e: React.MouseEvent) => {
+    setHoveredNode(node);
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleNodeLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, []);
+
+  const markers = useMemo(() => organs.map(node => {
+    const pos = organPositions[node.id] || { x: 50, y: 50 };
+    const color = statusColor(node.status);
+    const isSelected = selectedId === node.id;
+    const statusClass = `body-${node.status.toLowerCase()}`;
+
+    return (
+      <div
+        key={node.id}
+        className={`body-marker ${statusClass} ${isSelected ? 'body-marker-selected' : ''}`}
+        style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(node.id);
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (onDoubleClick) {
+            onDoubleClick(node.id, { x: e.clientX, y: e.clientY });
+          }
+        }}
+        onMouseEnter={(e) => handleNodeHover(node, e)}
+        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+        onMouseLeave={handleNodeLeave}
+      >
+        <span className="body-marker-glow" style={{ boxShadow: `0 0 22px 6px ${color}55` }} />
+        <span className="body-marker-dot" />
+        <span className="body-marker-label" style={{ color }}>
+          {node.name}
+        </span>
+      </div>
+    );
+  }), [organs, onSelect, selectedId, handleNodeHover, handleNodeLeave]);
 
   return (
-    <Canvas camera={{ position: [0, 1, 6], fov: 50 }} style={{ height: '70vh', borderRadius: '12px' }}>
-      <color attach="background" args={['#02030a']} />
-      <ambientLight intensity={0.4} />
-      <pointLight position={[5, 5, 5]} intensity={1.0} color="#ffffff" />
-      <pointLight position={[-5, -2, -5]} intensity={0.8} color="#38bdf8" />
+    <div className="body-stage">
+      <div
+        ref={containerRef}
+        className="body-image-wrapper"
+        style={{
+          aspectRatio: `${ratio.w} / ${ratio.h}`,
+          transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+          cursor: isDragging ? 'grabbing' : 'grab',
+          transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+        }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        <img
+          src={bodyImg}
+          alt="人体底图"
+          className="body-image"
+          draggable={false}
+          onLoad={(e) => {
+            const { naturalWidth, naturalHeight } = e.currentTarget;
+            if (naturalWidth && naturalHeight) {
+              setRatio({ w: naturalWidth, h: naturalHeight });
+            }
+          }}
+        />
+        {markers}
+      </div>
       
-      {/* 聚光灯模拟手术台/科技扫描台效果 */}
-      <spotLight position={[0, 10, 0]} angle={0.3} penumbra={1} intensity={2} color="#6366f1" />
+      {/* 控制按钮 */}
+      <div style={{
+        position: 'absolute',
+        bottom: '20px',
+        right: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        zIndex: 10,
+      }}>
+        <button
+          onClick={handleReset}
+          className="btn btn-secondary"
+          style={{ padding: '8px 16px', fontSize: '12px' }}
+          title="重置视图"
+        >
+          重置
+        </button>
+        <div style={{
+          background: 'rgba(8, 12, 22, 0.9)',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          color: 'rgba(255,255,255,0.6)',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}>
+          {(scale * 100).toFixed(0)}%
+        </div>
+      </div>
 
-      {/* 背景星空，增加科技感 */}
-      <Stars radius={50} depth={20} count={3000} factor={3} fade speed={0.5} />
-
-      <group position={[0, -1, 0]}>
-        {/* 抽象人体轮廓 - 玻璃胶囊体 */}
-        {/* 躯干 */}
-        <mesh position={[0, 0.5, 0]}>
-          <capsuleGeometry args={[1.2, 4, 4, 16]} />
-          <meshPhysicalMaterial 
-            color="#a5f3fc"
-            transmission={0.6}
-            opacity={0.1}
-            transparent
-            roughness={0.1}
-            metalness={0.1}
-            thickness={1} // 模拟玻璃厚度
-          />
-        </mesh>
-        
-        {/* 头部 (简单球体模拟) */}
-        <mesh position={[0, 3.2, 0]}>
-          <sphereGeometry args={[0.7, 32, 32]} />
-          <meshPhysicalMaterial 
-            color="#a5f3fc"
-            transmission={0.6}
-            opacity={0.1}
-            transparent
-            roughness={0.1}
-            metalness={0.1}
-            thickness={1}
-          />
-        </mesh>
-
-        {organMeshes}
-      </group>
-
-      <OrbitControls enablePan={false} minDistance={4} maxDistance={10} maxPolarAngle={Math.PI / 1.5} />
-    </Canvas>
+      {/* 悬停弹窗 */}
+      {hoveredNode && (
+        <div
+          className="hover-tooltip"
+          style={{
+            left: `${tooltipPos.x + 20}px`,
+            top: `${tooltipPos.y + 10}px`,
+          }}
+        >
+          <h3>{hoveredNode.name}</h3>
+          <div
+            className="status-badge"
+            style={{
+              color: hoveredNode.status === 'NORMAL' ? 'var(--primary)' :
+                     hoveredNode.status === 'WARNING' ? 'var(--warning)' : 'var(--critical)',
+              background: hoveredNode.status === 'NORMAL' ? 'rgba(56, 189, 248, 0.15)' :
+                          hoveredNode.status === 'WARNING' ? 'rgba(250, 204, 21, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              border: hoveredNode.status === 'NORMAL' ? '1px solid rgba(56, 189, 248, 0.3)' :
+                      hoveredNode.status === 'WARNING' ? '1px solid rgba(250, 204, 21, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+            }}
+          >
+            ● {hoveredNode.status} STATUS
+          </div>
+          <div className="tooltip-row">
+            <span>Activity Level</span>
+            <span className="value">{(hoveredNode.metrics.activity * 100).toFixed(1)}%</span>
+          </div>
+          <div className="tooltip-row">
+            <span>Stress Load</span>
+            <span className="value">{(hoveredNode.metrics.stress * 100).toFixed(1)}%</span>
+          </div>
+          {hoveredNode.description && (
+            <div className="tooltip-description">
+              {hoveredNode.description}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
-
