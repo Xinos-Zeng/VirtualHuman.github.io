@@ -13,14 +13,15 @@
   --border: rgba(255, 255, 255, 0.1);
   --border-active: rgba(56, 189, 248, 0.5);
   --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --hier-node-size: 16px;
+  --hier-node-glow: 1;
+  --transition-zoom-scale: 2;
 }
 
 body {
   margin: 0;
-  background-color: var(--bg);
-  background-image: 
-    radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.08), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.08), transparent 25%);
+  background-color: #000; /* Phase8: 纯黑背景 */
+  background-image: none;
   color: var(--text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow: hidden; /* 防止滚动条出现，应用全屏 */
@@ -37,7 +38,7 @@ body::before {
   height: 100vh;
   pointer-events: none;
   background-color: transparent;
-  background-image:
+  background-image: var(--star-bg, 
     radial-gradient(circle 2px at 12% 18%, white 0%, transparent 100%),
     radial-gradient(circle 1.5px at 28% 42%, white 0%, transparent 100%),
     radial-gradient(circle 2px at 46% 16%, white 0%, transparent 100%),
@@ -55,7 +56,8 @@ body::before {
     radial-gradient(circle 1px at 82% 15%, white 0%, transparent 100%),
     radial-gradient(circle 1px at 33% 95%, white 0%, transparent 100%),
     radial-gradient(circle 2px at 55% 10%, white 0%, transparent 100%),
-    radial-gradient(circle 1.5px at 8% 55%, white 0%, transparent 100%);
+    radial-gradient(circle 1.5px at 8% 55%, white 0%, transparent 100%)
+  );
   background-size: 100% 100%;
   background-repeat: no-repeat;
   opacity: 0.85;
@@ -477,6 +479,19 @@ body::before {
   overflow: hidden;
 }
 
+/* 信息弹窗样式 */
+.modal.info-modal {
+  border: 1px solid var(--primary);
+  box-shadow: var(--primary-glow);
+  width: 600px;
+  max-width: 85vw;
+}
+
+.modal.info-modal .modal-header {
+  background: rgba(56, 189, 248, 0.15);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+}
+
 .modal-header {
   background: rgba(239, 68, 68, 0.15);
   padding: 16px 24px;
@@ -791,6 +806,13 @@ body::before {
   background: rgba(0, 0, 0, 0.3);
 }
 
+.hierarchy-links {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .hierarchy-info-panel {
   width: 380px;
   height: 100%;
@@ -815,6 +837,11 @@ body::before {
   inset: 0;
   background: radial-gradient(circle at center, transparent 15%, rgba(2, 3, 10, 0.45) 65%, rgba(2, 3, 10, 0.92) 100%);
   z-index: 1;
+}
+
+@keyframes link-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -80; }
 }
 
 /* Level1 -> Level2 过渡层（放大/虚化） */
@@ -879,7 +906,7 @@ body::before {
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(22);
+    transform: translate(-50%, -50%) scale(var(--transition-zoom-scale));
     filter: blur(14px);
   }
 }
@@ -931,6 +958,33 @@ body::before {
 .hierarchy-node-warning { --node-color: #facc15; }
 .hierarchy-node-critical { --node-color: #ef4444; }
 
+/* 中心节点特殊样式 */
+.hierarchy-center-node {
+  z-index: 10 !important;
+  pointer-events: auto;
+}
+
+.hierarchy-center-node .hierarchy-node-dot {
+  width: calc(var(--hier-node-size) * 1.5px);
+  height: calc(var(--hier-node-size) * 1.5px);
+  border-width: 4px;
+  box-shadow: 0 0 25px var(--node-color), 0 0 40px var(--node-color), inset 0 0 18px var(--node-color);
+}
+
+.hierarchy-center-node .hierarchy-node-glow {
+  width: calc(var(--hier-node-size) * 6px);
+  height: calc(var(--hier-node-size) * 6px);
+  opacity: 0.8;
+  filter: blur(18px);
+}
+
+.hierarchy-center-node .hierarchy-node-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
 .hierarchy-node-selected .hierarchy-node-dot {
   box-shadow: 0 0 20px var(--node-color), 0 0 35px var(--node-color), inset 0 0 15px var(--node-color);
   border-width: 4px;
@@ -946,8 +1000,8 @@ body::before {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 60px;
-  height: 60px;
+  width: calc(3.6 * var(--hier-node-size) * var(--hier-node-glow));
+  height: calc(3.6 * var(--hier-node-size) * var(--hier-node-glow));
   border-radius: 100%;
   opacity: 0.5;
   filter: blur(10px);
@@ -963,8 +1017,8 @@ body::before {
 }
 
 .hierarchy-node-dot {
-  width: 16px;
-  height: 16px;
+  width: var(--hier-node-size);
+  height: var(--hier-node-size);
   border-radius: 50%;
   border: 3px solid var(--node-color);
   box-shadow: 0 0 15px var(--node-color), inset 0 0 10px var(--node-color);

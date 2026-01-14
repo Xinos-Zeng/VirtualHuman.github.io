@@ -1,4 +1,5 @@
 import { AgentNode, InteractionEdge, SimulationState, Literature } from '../types/Agent';
+import { AppConfig } from '../config/appConfig';
 
 // 模拟文献数据
 const mockLiterature: Record<string, Literature[]> = {
@@ -87,8 +88,8 @@ export const MockDataService = {
       };
 
       // 2. 为每个器官创建组织 (Level 2)
-      // 简化：每个器官 2 个组织
-      for (let i = 1; i <= 2; i++) {
+      const tissueCount = Math.max(1, AppConfig.hierarchy.tissuesPerOrgan);
+      for (let i = 1; i <= tissueCount; i++) {
         const tissueId = `${organ.id}-tissue-${i}`;
         nodes[tissueId] = {
           id: tissueId,
@@ -112,7 +113,8 @@ export const MockDataService = {
         nodes[organ.id].childrenIds?.push(tissueId);
 
         // 3. 为每个组织创建细胞 (Level 3)
-        for (let j = 1; j <= 2; j++) {
+        const cellCount = Math.max(1, AppConfig.hierarchy.cellsPerTissue);
+        for (let j = 1; j <= cellCount; j++) {
             const cellId = `${tissueId}-cell-${j}`;
             nodes[cellId] = {
                 id: cellId,

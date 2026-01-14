@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { AgentNode } from '../../types/Agent';
 import bodyImg from '../../assets/body.png';
+import { AppConfig } from '../../config/appConfig';
 
 interface HumanBodyProps {
   organs: AgentNode[];
@@ -85,6 +86,26 @@ export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSele
     setHoveredNode(null);
   }, []);
 
+  // 生成从心脏到其他器官的连线
+  const links = useMemo(() => {
+    const heartNode = organs.find(n => n.id === 'organ-heart');
+    if (!heartNode) return [];
+    
+    const heartPos = organPositions['organ-heart'];
+    return organs
+      .filter(n => n.id !== 'organ-heart')
+      .map(node => {
+        const targetPos = organPositions[node.id] || { x: 50, y: 50 };
+        return {
+          id: `link-${heartNode.id}-${node.id}`,
+          x1: heartPos.x,
+          y1: heartPos.y,
+          x2: targetPos.x,
+          y2: targetPos.y,
+        };
+      });
+  }, [organs]);
+
   const markers = useMemo(() => organs.map(node => {
     const pos = organPositions[node.id] || { x: 50, y: 50 };
     const color = statusColor(node.status);
@@ -117,10 +138,10 @@ export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSele
         </span>
       </div>
     );
-  }), [organs, onSelect, selectedId, handleNodeHover, handleNodeLeave]);
+  }), [organs, onSelect, selectedId, handleNodeHover, handleNodeLeave, onDoubleClick]);
 
   return (
-    <div className="body-stage">
+    <div className="body-stage" onWheel={handleWheel}>
       <div
         ref={containerRef}
         className="body-image-wrapper"
@@ -130,7 +151,6 @@ export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSele
           cursor: isDragging ? 'grabbing' : 'grab',
           transition: isDragging ? 'none' : 'transform 0.2s ease-out',
         }}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -148,6 +168,51 @@ export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSele
             }
           }}
         />
+        
+        {/* 连线层 */}
+        <svg 
+          className="body-links-layer" 
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          {links.map(link => (
+            <g key={link.id}>
+              <line
+                x1={link.x1}
+                y1={link.y1}
+                x2={link.x2}
+                y2={link.y2}
+                stroke={AppConfig.links.strokeColor}
+                strokeWidth={AppConfig.links.strokeWidth / 10}
+                vectorEffect="non-scaling-stroke"
+              />
+              <circle
+                className="body-link-particle"
+                r={AppConfig.links.particleSize / 10}
+                fill={AppConfig.links.particleColor}
+                style={{
+                  filter: `drop-shadow(${AppConfig.links.particleGlow})`,
+                }}
+              >
+                <animateMotion
+                  dur={`${AppConfig.links.particleSpeed}s`}
+                  repeatCount="indefinite"
+                  path={`M ${link.x1},${link.y1} L ${link.x2},${link.y2}`}
+                />
+              </circle>
+            </g>
+          ))}
+        </svg>
+        
         {markers}
       </div>
       

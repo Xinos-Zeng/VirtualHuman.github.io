@@ -4,6 +4,7 @@ import { HumanBody } from './components/level1/HumanBody';
 import { HierarchyView } from './components/level2/HierarchyView';
 import { DebugPanel } from './components/debug/DebugPanel';
 import './App.css';
+import { AppConfig } from './config/appConfig';
 
 type ViewMode = 'LEVEL1' | 'DEBUG' | 'HIERARCHY';
 
@@ -16,6 +17,17 @@ type TransitionState =
   | { active: false }
   | { active: true; nodeId: string; origin: { x: number; y: number } };
 
+const buildStarBackground = (count: number, maxSize: number) => {
+  const gradients: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const size = (Math.random() * (maxSize - 1)) + 1; // 1 ~ maxSize px
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    gradients.push(`radial-gradient(circle ${size}px at ${x}% ${y}%, white 0%, transparent 100%)`);
+  }
+  return gradients.join(',');
+};
+
 // 器官背景图路径映射（用于过渡动画与二级窗口背景）
 const organBackgrounds: Record<string, string> = {
   'organ-heart': '/assets/organs/heart-bg.jpg',
@@ -25,7 +37,7 @@ const organBackgrounds: Record<string, string> = {
   'organ-brain': '/assets/organs/brain-bg.jpg',
 };
 
-const HierarchyTransitionOverlay: React.FC<{ state: TransitionState }> = ({ state }) => {
+const HierarchyTransitionOverlay: React.FC<{ state: TransitionState; zoomScale: number }> = ({ state, zoomScale }) => {
   if (!state.active) return null;
   const bg = organBackgrounds[state.nodeId];
   return (
@@ -37,6 +49,7 @@ const HierarchyTransitionOverlay: React.FC<{ state: TransitionState }> = ({ stat
           {
             '--x': `${state.origin.x}px`,
             '--y': `${state.origin.y}px`,
+            '--transition-zoom-scale': zoomScale,
             backgroundImage: bg ? `url(${bg})` : undefined,
           } as React.CSSProperties
         }
@@ -314,6 +327,17 @@ const App: React.FC = () => {
   });
   const [transition, setTransition] = useState<TransitionState>({ active: false });
 
+  // 初始化全局样式变量（星空、节点尺寸、光晕强度、过渡倍率）
+  useEffect(() => {
+    const root = document.documentElement;
+    const starCount = Math.max(4, Math.round(AppConfig.starfield.baseCount * AppConfig.starfield.density));
+    const starBg = buildStarBackground(starCount, AppConfig.starfield.maxSize);
+    root.style.setProperty('--star-bg', starBg);
+    root.style.setProperty('--hier-node-size', `${AppConfig.hierarchy.nodeSize}px`);
+    root.style.setProperty('--hier-node-glow', `${AppConfig.hierarchy.glowScale}`);
+    root.style.setProperty('--transition-zoom-scale', `${AppConfig.transition.zoomScale}`);
+  }, []);
+
   const handleEnterHierarchy = (nodeId: string, origin?: { x: number; y: number }) => {
     const fallbackOrigin = {
       x: window.innerWidth / 2,
@@ -330,12 +354,12 @@ const App: React.FC = () => {
         history: [nodeId],
       });
       setView('HIERARCHY');
-    }, 420);
+    }, AppConfig.transition.switchDelayMs);
 
     // 过渡层稍后移除（避免硬切）
     window.setTimeout(() => {
       setTransition({ active: false });
-    }, 700);
+    }, AppConfig.transition.durationMs);
   };
 
   const handleNavigateHierarchy = (nodeId: string) => {
@@ -364,7 +388,7 @@ const App: React.FC = () => {
 
   return (
     <SimulationProvider>
-      <HierarchyTransitionOverlay state={transition} />
+      <HierarchyTransitionOverlay state={transition} zoomScale={AppConfig.transition.zoomScale} />
       {view === 'LEVEL1' && (
         <Level1View 
           onDebug={() => setView('DEBUG')}

@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { AgentNode, Literature } from '../../types/Agent';
+import { AppConfig } from '../../config/appConfig';
 
 interface HierarchyViewProps {
   currentNode: AgentNode;
@@ -41,13 +42,13 @@ const hash01 = (input: string) => {
   return (h >>> 0) / 4294967295;
 };
 
-const stablePosition = (key: string) => {
-  // 留出标题/提示/边距区域，避免压到角落
-  const rx = hash01(`${key}::x`);
-  const ry = hash01(`${key}::y`);
+// 生成围绕中心的圆形分布位置（基于索引和总数）
+const circularPosition = (index: number, total: number, radius: number = 30) => {
+  // 从顶部开始，顺时针分布
+  const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
   return {
-    x: 18 + rx * 64, // 18% ~ 82%
-    y: 18 + ry * 64, // 18% ~ 82%
+    x: 50 + Math.cos(angle) * radius,
+    y: 50 + Math.sin(angle) * radius,
   };
 };
 
@@ -60,6 +61,7 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const positionCacheRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   const fallbackLiterature: Literature[] = useMemo(() => {
@@ -92,15 +94,10 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
     return organBackgrounds[organId];
   }, [currentNode.id, currentNode.level, backgroundOrganId]);
 
-  // 为每个子节点生成稳定位置（不随状态刷新而漂移）
+  // 为每个子节点生成围绕中心的圆形分布位置
   const visualNodes = useMemo(() => {
-    return childNodes.map((node) => {
-      const cached = positionCacheRef.current.get(node.id);
-      if (cached) {
-        return { node, x: cached.x, y: cached.y, key: node.id };
-      }
-      const pos = stablePosition(node.id);
-      positionCacheRef.current.set(node.id, pos);
+    return childNodes.map((node, index) => {
+      const pos = circularPosition(index, childNodes.length, 32);
       return { node, x: pos.x, y: pos.y, key: node.id };
     });
   }, [childNodes]);
@@ -115,6 +112,50 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
     >
       <div className="hierarchy-view-wrapper">
         <div className="hierarchy-view">
+          {/* 连线层：中心到子节点，带流动光点 */}
+          <svg 
+            className="hierarchy-links" 
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            {visualNodes.map(({ node, x, y, key }) => (
+              <g key={`link-${key}`}>
+                <line
+                  x1="50"
+                  y1="50"
+                  x2={x}
+                  y2={y}
+                  stroke={AppConfig.links.strokeColor}
+                  strokeWidth={AppConfig.links.strokeWidth / 10}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <circle
+                  className="hierarchy-link-particle"
+                  r={AppConfig.links.particleSize / 10}
+                  fill={AppConfig.links.particleColor}
+                  style={{
+                    filter: `drop-shadow(${AppConfig.links.particleGlow})`,
+                  }}
+                >
+                  <animateMotion
+                    dur={`${AppConfig.links.particleSpeed}s`}
+                    repeatCount="indefinite"
+                    path={`M 50,50 L ${x},${y}`}
+                  />
+                </circle>
+              </g>
+            ))}
+          </svg>
+
           {/* 背景图层 */}
           {backgroundImage && (
             <div 
@@ -139,8 +180,28 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
           </div>
         </div>
 
-        {/* 子节点视觉展示 */}
+        {/* 节点层 */}
         <div className="hierarchy-nodes">
+          {/* 中心节点（当前层级的父节点） */}
+          <div
+            className={`hierarchy-node hierarchy-center-node hierarchy-node-${currentNode.status.toLowerCase()}`}
+            style={{
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%) scale(1.3)',
+              '--node-color': statusColor(currentNode.status),
+              zIndex: 10,
+            } as React.CSSProperties}
+            onClick={() => setSelectedNodeId(null)}
+          >
+            <span className="hierarchy-node-glow" />
+            <span className="hierarchy-node-dot" />
+            <span className="hierarchy-node-label" style={{ color: statusColor(currentNode.status) }}>
+              {currentNode.name}
+            </span>
+          </div>
+
+          {/* 围绕中心的子节点 */}
           {visualNodes.map(({ node, x, y, key }) => {
             const color = statusColor(node.status);
             const isHovered = hoveredId === node.id;
@@ -265,21 +326,30 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
               </div>
             </div>
 
-            {selectedNode.childrenIds && selectedNode.childrenIds.length > 0 && (
-              <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-                <button 
-                  className="btn" 
-                  style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }} 
-                  onClick={() => onNodeDoubleClick(selectedNode.id)}
-                >
-                  <span>Zoom In Deeper</span>
-                  <span>→</span>
-                </button>
-                <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: 'var(--text-dim)' }}>
-                  Double-click node or click here to explore sub-level
-                </div>
-              </div>
-            )}
+            <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+              {selectedNode.childrenIds && selectedNode.childrenIds.length > 0 && (
+                <>
+                  <button 
+                    className="btn" 
+                    style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }} 
+                    onClick={() => onNodeDoubleClick(selectedNode.id)}
+                  >
+                    <span>Zoom In Deeper</span>
+                    <span>→</span>
+                  </button>
+                  <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: 'var(--text-dim)' }}>
+                    Double-click node or click here to explore sub-level
+                  </div>
+                </>
+              )}
+              <button 
+                className="btn btn-secondary" 
+                style={{ width: '100%', marginTop: '10px' }}
+                onClick={() => setShowDetailModal(true)}
+              >
+                📖 在弹窗查看详情
+              </button>
+            </div>
           </div>
         ) : (
           <div className="empty-state" style={{ height: '100%' }}>
@@ -288,6 +358,63 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
         </div>
         )}
       </div>
+      {/* 右侧卡片弹窗 */}
+      {showDetailModal && selectedNode && (
+        <div className="modal-backdrop" onClick={() => setShowDetailModal(false)}>
+          <div className="modal info-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>节点详情</span>
+              <button style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px' }} onClick={() => setShowDetailModal(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: '24px' }}>{selectedNode.name}</h2>
+              <div className={`status-badge ${selectedNode.status === 'CRITICAL' ? 'critical' : ''}`} 
+                   style={{ 
+                     color: selectedNode.status === 'NORMAL' ? 'var(--primary)' : 
+                            selectedNode.status === 'WARNING' ? 'var(--warning)' : 'var(--critical)',
+                     background: selectedNode.status === 'NORMAL' ? 'rgba(56, 189, 248, 0.15)' :
+                                selectedNode.status === 'WARNING' ? 'rgba(250, 204, 21, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                     border: selectedNode.status === 'NORMAL' ? '1px solid rgba(56, 189, 248, 0.3)' :
+                            selectedNode.status === 'WARNING' ? '1px solid rgba(250, 204, 21, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                   }}>
+                ● {selectedNode.status} STATUS
+              </div>
+              {selectedNode.description && (
+                <p style={{ color: 'var(--text-dim)', lineHeight: 1.6 }}>{selectedNode.description}</p>
+              )}
+              <div className="info-section" style={{ marginTop: '12px' }}>
+                <div className="info-section-header">
+                  <span className="info-section-icon">📚</span>
+                  <span className="info-section-title">Related Literature</span>
+                </div>
+                <div className="info-section-content">
+                  {selectedNodeLiterature.map((lit, idx) => (
+                    <div key={idx} className="literature-item">
+                      <div className="literature-title">{lit.title}</div>
+                      <div className="literature-meta">
+                        <span className="literature-meta-item">✍️ {lit.authors}</span>
+                        <span className="literature-meta-item">📖 {lit.journal}</span>
+                        <span className="literature-meta-item">📅 {lit.year}</span>
+                      </div>
+                      <div className="literature-summary">{lit.summary}</div>
+                      {lit.doi && (
+                        <a 
+                          href={`https://doi.org/${lit.doi}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="literature-doi"
+                        >
+                          🔗 DOI: {lit.doi}
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </div>
   );
