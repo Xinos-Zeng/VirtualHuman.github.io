@@ -192,12 +192,13 @@ export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSele
                 x2={link.x2}
                 y2={link.y2}
                 stroke={AppConfig.links.strokeColor}
-                strokeWidth={AppConfig.links.strokeWidth / 10}
+                strokeWidth={AppConfig.links.strokeWidth / 8}
+                strokeOpacity={AppConfig.links.strokeOpacity}
                 vectorEffect="non-scaling-stroke"
               />
               <circle
                 className="body-link-particle"
-                r={AppConfig.links.particleSize / 10}
+                r={AppConfig.links.particleSize / 8}
                 fill={AppConfig.links.particleColor}
                 style={{
                   filter: `drop-shadow(${AppConfig.links.particleGlow})`,

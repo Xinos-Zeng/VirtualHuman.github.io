@@ -136,6 +136,7 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
                   y2={y}
                   stroke={AppConfig.links.strokeColor}
                   strokeWidth={AppConfig.links.strokeWidth / 10}
+                  strokeOpacity={AppConfig.links.strokeOpacity}
                   vectorEffect="non-scaling-stroke"
                 />
                 <circle
@@ -214,7 +215,7 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
                 style={{
                   left: `${x}%`,
                   top: `${y}%`,
-                  transform: isHovered ? 'translate(-50%, -50%) scale(1.15)' : 'translate(-50%, -50%)',
+                  transform: isHovered ? `translate(-50%, -50%) scale(${AppConfig.hierarchy.hoverScale})` : 'translate(-50%, -50%)',
                   '--node-color': color,
                 } as React.CSSProperties}
                 onClick={() => setSelectedNodeId(node.id)}
@@ -262,7 +263,12 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
             </div>
 
             {/* 状态信息区 */}
-            <div className="info-section">
+            <div 
+              className="info-section" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowDetailModal(true)}
+              title="点击查看详情"
+            >
               <div className="info-section-header">
                 <span className="info-section-icon">📊</span>
                 <span className="info-section-title">Status Information</span>
@@ -287,7 +293,12 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
             </div>
 
             {/* 文献信息区 */}
-            <div className="info-section">
+            <div 
+              className="info-section"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowDetailModal(true)}
+              title="点击查看详情"
+            >
               <div className="info-section-header">
                 <span className="info-section-icon">📚</span>
                 <span className="info-section-title">Related Literature</span>
@@ -342,13 +353,6 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
                   </div>
                 </>
               )}
-              <button 
-                className="btn btn-secondary" 
-                style={{ width: '100%', marginTop: '10px' }}
-                onClick={() => setShowDetailModal(true)}
-              >
-                📖 在弹窗查看详情
-              </button>
             </div>
           </div>
         ) : (
@@ -380,8 +384,29 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
                 ● {selectedNode.status} STATUS
               </div>
               {selectedNode.description && (
-                <p style={{ color: 'var(--text-dim)', lineHeight: 1.6 }}>{selectedNode.description}</p>
+                <p style={{ color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: '16px' }}>{selectedNode.description}</p>
               )}
+              
+              {/* 指标信息 */}
+              <div className="info-section" style={{ marginTop: '12px' }}>
+                <div className="info-section-header">
+                  <span className="info-section-icon">📊</span>
+                  <span className="info-section-title">Metrics</span>
+                </div>
+                <div className="info-section-content">
+                  <div className="status-info-grid">
+                    <div className="status-metric">
+                      <div className="status-metric-label">Activity</div>
+                      <div className="status-metric-value">{(selectedNode.metrics.activity * 100).toFixed(1)}%</div>
+                    </div>
+                    <div className="status-metric">
+                      <div className="status-metric-label">Stress</div>
+                      <div className="status-metric-value">{(selectedNode.metrics.stress * 100).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="info-section" style={{ marginTop: '12px' }}>
                 <div className="info-section-header">
                   <span className="info-section-icon">📚</span>

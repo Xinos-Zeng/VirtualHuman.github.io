@@ -1028,6 +1028,11 @@ body::before {
 }
 
 .hierarchy-node-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
   background: rgba(8, 12, 22, 0.95);
   padding: 6px 12px;
   border-radius: 8px;
@@ -1037,6 +1042,7 @@ body::before {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
   white-space: nowrap;
   animation: tooltipFadeIn 0.2s ease;
+  pointer-events: none;
 }
 
 .hierarchy-hint {

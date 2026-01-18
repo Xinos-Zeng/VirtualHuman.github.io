@@ -91,6 +91,7 @@ const Level1View: React.FC<{
 }> = ({ onDebug, onEnterHierarchy }) => {
   const { state, selectNode } = useSimulation();
   const [criticalAcknowledged, setCriticalAcknowledged] = useState<Set<string>>(new Set());
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   const organs = useMemo(() => Object.values(state.nodes).filter(n => n.level === 'ORGAN'), [state.nodes]);
   const selectedOrganId = state.selectedNodeId || null;
@@ -165,7 +166,12 @@ const Level1View: React.FC<{
               </div>
 
               {/* 状态信息区 */}
-              <div className="info-section">
+              <div 
+                className="info-section"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setShowDetailModal(true)}
+                title="点击查看详情"
+              >
                 <div className="info-section-header">
                   <span className="info-section-icon">📊</span>
                   <span className="info-section-title">Status Information</span>
@@ -190,7 +196,12 @@ const Level1View: React.FC<{
               </div>
 
               {/* 文献信息区 */}
-              <div className="info-section">
+              <div 
+                className="info-section"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setShowDetailModal(true)}
+                title="点击查看详情"
+              >
                 <div className="info-section-header">
                   <span className="info-section-icon">📚</span>
                   <span className="info-section-title">Related Literature</span>
@@ -254,6 +265,92 @@ const Level1View: React.FC<{
 
       {showModal && selectedOrgan && (
         <CriticalModal nodeName={selectedOrgan.name} onClose={closeModal} />
+      )}
+      
+      {/* 详情弹窗 */}
+      {showDetailModal && selectedOrgan && (
+        <div className="modal-backdrop" onClick={() => setShowDetailModal(false)}>
+          <div className="modal info-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>器官详情</span>
+              <button style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px' }} onClick={() => setShowDetailModal(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: '24px' }}>{selectedOrgan.name}</h2>
+              <div className={`status-badge ${selectedOrgan.status === 'CRITICAL' ? 'critical' : ''}`} 
+                   style={{ 
+                     color: selectedOrgan.status === 'NORMAL' ? 'var(--primary)' : 
+                            selectedOrgan.status === 'WARNING' ? 'var(--warning)' : 'var(--critical)',
+                     background: selectedOrgan.status === 'NORMAL' ? 'rgba(56, 189, 248, 0.15)' :
+                                selectedOrgan.status === 'WARNING' ? 'rgba(250, 204, 21, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                     border: selectedOrgan.status === 'NORMAL' ? '1px solid rgba(56, 189, 248, 0.3)' :
+                            selectedOrgan.status === 'WARNING' ? '1px solid rgba(250, 204, 21, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                   }}>
+                ● {selectedOrgan.status} STATUS
+              </div>
+              {selectedOrgan.description && (
+                <p style={{ color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: '16px' }}>{selectedOrgan.description}</p>
+              )}
+              
+              {/* 指标信息 */}
+              <div className="info-section" style={{ marginTop: '12px' }}>
+                <div className="info-section-header">
+                  <span className="info-section-icon">📊</span>
+                  <span className="info-section-title">Metrics</span>
+                </div>
+                <div className="info-section-content">
+                  <div className="status-info-grid">
+                    <div className="status-metric">
+                      <div className="status-metric-label">Activity</div>
+                      <div className="status-metric-value">{(selectedOrgan.metrics.activity * 100).toFixed(1)}%</div>
+                    </div>
+                    <div className="status-metric">
+                      <div className="status-metric-label">Stress</div>
+                      <div className="status-metric-value">{(selectedOrgan.metrics.stress * 100).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="info-section" style={{ marginTop: '12px' }}>
+                <div className="info-section-header">
+                  <span className="info-section-icon">📚</span>
+                  <span className="info-section-title">Related Literature</span>
+                </div>
+                <div className="info-section-content">
+                  {selectedOrgan.literature && selectedOrgan.literature.length > 0 ? (
+                    selectedOrgan.literature.map((lit, idx) => (
+                      <div key={idx} className="literature-item">
+                        <div className="literature-title">{lit.title}</div>
+                        <div className="literature-meta">
+                          <span className="literature-meta-item">✍️ {lit.authors}</span>
+                          <span className="literature-meta-item">📖 {lit.journal}</span>
+                          <span className="literature-meta-item">📅 {lit.year}</span>
+                        </div>
+                        <div className="literature-summary">{lit.summary}</div>
+                        {lit.doi && (
+                          <a 
+                            href={`https://doi.org/${lit.doi}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="literature-doi"
+                          >
+                            🔗 DOI: {lit.doi}
+                          </a>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="empty-state">
+                      <div className="empty-state-icon">📄</div>
+                      <div>No literature data available</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
