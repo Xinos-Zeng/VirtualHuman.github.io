@@ -11,13 +11,13 @@ interface HierarchyViewProps {
   backgroundOrganId?: string;
 }
 
-// 器官背景图路径映射
+// 器官背景图路径映射（使用相对路径以兼容 GitHub Pages）
 const organBackgrounds: Record<string, string> = {
-  'organ-heart': '/assets/organs/heart-bg.jpg',
-  'organ-liver': '/assets/organs/liver-bg.jpg',
-  'organ-kidney': '/assets/organs/kidney-bg.jpg',
-  'organ-Intestine': '/assets/organs/intestine-bg.jpg',
-  'organ-brain': '/assets/organs/brain-bg.jpg',
+  'organ-heart': './assets/organs/heart-bg.jpg',
+  'organ-liver': './assets/organs/liver-bg.jpg',
+  'organ-kidney': './assets/organs/kidney-bg.jpg',
+  'organ-Intestine': './assets/organs/intestine-bg.jpg',
+  'organ-brain': './assets/organs/brain-bg.jpg',
 };
 
 const statusColor = (status: AgentNode['status']) => {
