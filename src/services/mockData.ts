@@ -68,10 +68,10 @@ export const MockDataService = {
 
     // 1. 创建器官 (Level 1)
     const organs = [
-      { id: 'organ-heart', name: '心脏' },
-      { id: 'organ-liver', name: '肝脏' },
-      { id: 'organ-kidney', name: '肾脏' },
-      { id: 'organ-Intestine', name: '肠道' },
+      { id: 'organ-heart', name: 'Heart' },
+      { id: 'organ-liver', name: 'Liver' },
+      { id: 'organ-kidney', name: 'Kidney' },
+      { id: 'organ-Intestine', name: 'Intestine' },
       { id: 'organ-brain', name: 'CNS' },
     ];
 
@@ -83,7 +83,7 @@ export const MockDataService = {
         status: 'NORMAL',
         metrics: { activity: 0.5, stress: 0.1 },
         childrenIds: [],
-        description: `${organ.name}运行正常，各项指标平稳。`,
+        description: `${organ.name} is operating normally with stable metrics.`,
         literature: mockLiterature[organ.id] || []
       };
 
@@ -93,13 +93,13 @@ export const MockDataService = {
         const tissueId = `${organ.id}-tissue-${i}`;
         nodes[tissueId] = {
           id: tissueId,
-          name: `${organ.name}组织-${i}`,
+          name: `${organ.name} Tissue-${i}`,
           level: 'TISSUE',
           status: 'NORMAL',
           metrics: { activity: 0.5, stress: 0.1 },
           parentId: organ.id,
           childrenIds: [],
-          description: `${organ.name}的组织层级结构，负责协调细胞活动。`,
+          description: `Tissue structure of ${organ.name}, coordinating cellular activities.`,
           literature: [
             {
               title: `Tissue Organization in ${organ.name}`,
@@ -118,13 +118,13 @@ export const MockDataService = {
             const cellId = `${tissueId}-cell-${j}`;
             nodes[cellId] = {
                 id: cellId,
-                name: `${organ.name}细胞-${i}-${j}`,
+                name: `${organ.name} Cell-${i}-${j}`,
                 level: 'CELL',
                 status: 'NORMAL',
                 metrics: { activity: 0.5, stress: 0.1 },
                 parentId: tissueId,
                 childrenIds: [],
-                description: `${organ.name}的功能性细胞单元，执行特定的生理功能。`,
+                description: `Functional cell unit of ${organ.name}, performing specific physiological functions.`,
                 literature: [
                   {
                     title: `Cellular Mechanisms in ${organ.name}`,
@@ -147,16 +147,16 @@ export const MockDataService = {
       targetId: 'organ-heart',
       type: 'SUPPORT',
       intensity: 'MEDIUM',
-      description: '肝脏为心脏提供代谢支持'
+      description: 'Liver provides metabolic support to heart'
     });
     
     edges.push({
         id: 'edge-2',
         sourceId: 'organ-kidney',
         targetId: 'organ-liver',
-        type: 'DAMAGE', // 模拟一个潜在风险
+        type: 'DAMAGE',
         intensity: 'LOW',
-        description: '肾脏代谢负担可能影响肝脏'
+        description: 'Kidney metabolic load may impact liver function'
       });
 
     return {

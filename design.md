@@ -1,5 +1,9 @@
 # 虚拟人类(VirtualHuman)项目设计方案
 
+[IMPORTANT] 
+开发过程中应保持更新该文档
+你无需进行测试，只需给出交付标准
+
 ## 整体风格定位
 视觉风格：深色科技感（Dark Mode + Neon Glow）
 交互动效：流畅过渡 + 动态粒子流 + 悬停高亮
@@ -281,6 +285,236 @@ src/
        - `src/config/appConfig.ts`: 全局配置文件（新增）
        - `src/components/level1/HumanBody.tsx`: 添加连线层与光点动画
        - `src/components/level2/HierarchyView.tsx`: 重构布局为中心辐射式，添加中心节点与弹窗
-       - `src/App.tsx`: 注入配置到 CSS 变量，生成星空背景
-       - `src/App.css`: 添加中心节点样式、弹窗样式、连线动画
-       - `design.md`: 更新 Phase8 任务列表与开发日志
+      - `src/App.tsx`: 注入配置到 CSS 变量，生成星空背景
+      - `src/App.css`: 添加中心节点样式、弹窗样式、连线动画
+      - `design.md`: 更新 Phase8 任务列表与开发日志
+
+---
+
+## Phase 9: Internationalization & Enhanced Data Simulation
+
+**目标**: 将所有界面文本英文化，构建丰富的节点模拟数据，并添加信号输入功能。
+
+**任务列表**:
+- [x] 将所有界面显示文本替换为英文
+- [x] 创建 `enrichedNodeData.ts` 存储丰富的节点模拟信息
+- [x] 在卡片栏添加"Signal Input"按钮和弹窗功能
+- [x] 更新 `design.md` 添加 Phase9 开发日志
+
+**开发日志（2026-01-20）**:
+- **国际化（i18n）**: 
+  - 将所有中文界面文本替换为英文，包括：
+    - 交互提示（"单击选择 • 双击放大进入" → "Click to select • Double-click to zoom in"）
+    - 卡片标题（"器官详情" → "Organ Details"，"节点详情" → "Node Details"）
+    - 信息区块标题（"状态信息" → "Status Information"，"相关文献" → "Related Literature"）
+    - 节点名称（"心脏" → "Heart"，"肝脏" → "Liver"，"肾脏" → "Kidney"，"肠道" → "Intestine"）
+    - 节点描述和文献信息全部英文化
+  - 修改文件：`src/App.tsx`、`src/components/level2/HierarchyView.tsx`、`src/services/mockData.ts`
+
+- **丰富的节点数据系统**: 
+  - 创建 `src/services/enrichedNodeData.ts`，为每个节点提供详细的模拟信息：
+    - **`statusDetails`**: 详细的状态描述（如心脏的心输出量、心率、射血分数等生理指标）
+    - **`literature`**: 丰富的文献列表（每个器官 3-5 篇高质量模拟文献，包含标题、作者、期刊、年份、DOI、摘要）
+    - **`signalResponse`**: 默认的信号输入响应模拟文本（描述节点接收信号后的预期反应）
+  - 为五个器官（Heart, Liver, Kidney, Intestine, CNS）分别构建详细的模拟数据
+  - 组织和细胞级别使用通用模板生成数据
+  - 通过 `getEnrichedNodeData()` 函数统一访问，自动回退到通用数据
+
+- **信号输入功能**: 
+  - 在所有层级的节点信息卡片底部添加"⚡ Signal Input"按钮
+  - 点击按钮弹出中央模态窗口，包含：
+    - **输入区**: 多行文本框，用户可输入模拟信号（如"Increased workload"、"External stress detected"）
+    - **响应区**: 显示该节点的预期响应（从 `enrichedNodeData` 读取 `signalResponse`）
+    - 提示文本说明这是模拟响应，实际逻辑将在未来阶段实现
+  - 模态窗口支持遮罩点击关闭，使用与详情弹窗相同的样式系统
+  - 实现位置：
+    - Level1 (`App.tsx` 中的 `Level1View` 组件)
+    - Level2+ (`HierarchyView.tsx` 组件)
+
+- **数据集成**: 
+  - 在 `App.tsx` 和 `HierarchyView.tsx` 中集成 `enrichedNodeData`
+  - 替换原有的 `node.description` 为 `enrichedData.statusDetails`（更详细）
+  - 替换原有的 `node.literature` 为 `enrichedData.literature`（更丰富）
+  - Level1 信息卡片仅显示前 2 篇文献，详情弹窗显示全部
+
+- **文件结构**: 
+  - `src/services/enrichedNodeData.ts`: 丰富的节点数据定义（新增）
+  - `src/App.tsx`: 集成 enrichedData，添加 Signal Input 按钮和弹窗
+  - `src/components/level2/HierarchyView.tsx`: 集成 enrichedData，添加 Signal Input 按钮和弹窗
+  - `src/services/mockData.ts`: 节点名称和描述英文化
+  - `src/App.css`: 复用现有的 `.btn-secondary` 和 `.info-modal` 样式
+  - `design.md`: 添加 Phase9 任务与开发日志
+
+**技术细节**:
+- **数据结构**: `EnrichedNodeData` 接口包含 `statusDetails`、`literature`、`signalResponse` 三个字段
+- **数据访问**: 通过 `useMemo` 缓存 `enrichedData`，避免不必要的重复计算
+- **状态管理**: 使用 `showSignalInput` 和 `signalInputText` 状态管理弹窗显示和用户输入
+- **样式复用**: Signal Input 弹窗复用 `.info-modal-overlay`、`.info-modal-container` 等样式类
+- **用户体验**: 输入框支持多行文本，响应区使用预格式化文本（`white-space: pre-line`）保持换行格式
+
+**Phase 9 优化（2026-01-20）**:
+1. **器官名称确认**: 
+   - 验证所有器官名称已正确英文化（Heart, Liver, Kidney, Intestine, CNS）
+   - 组织和细胞名称自动继承器官英文名
+
+2. **Signal Input 交互优化**: 
+   - 将 Signal Input 从底部按钮改为卡片栏信息区块
+   - 位置调整到 Zoom In 按钮上方，与其他信息区块（Status Information, Related Literature）保持一致的视觉风格
+   - 点击后在屏幕中央弹出模态窗口，与点击其他信息区块的交互方式统一
+   - 移除了独立的按钮样式，采用 `.info-section` 样式以保持界面一致性
+
+3. **子节点数据丰富化**: 
+   - **组织级别（TISSUE）**: 
+     - 定义 6 种组织类型（Epithelial, Connective, Muscular, Nervous, Vascular, Parenchymal），每种具有独特的功能、标记物和代谢率
+     - 基于节点 ID 哈希值稳定分配组织类型，确保同一节点始终显示相同数据
+     - 状态描述包含：组织类型、细胞密度、代谢活性、标记物表达、血管化指数、基质完整性
+     - 每个组织节点生成 3 篇独特的文献引用，涵盖组织重塑、细胞异质性、血管网络等主题
+     - 信号响应模拟包含组织特异性的反应参数
+   - **细胞级别（CELL）**: 
+     - 定义 6 种细胞类型（Progenitor, Mature, Senescent, Activated, Quiescent, Regenerating），每种具有特定功能和活性/压力水平
+     - 基于节点 ID 哈希值稳定分配细胞类型
+     - 状态描述包含：细胞状态、ATP 水平、蛋白质合成速率、膜完整性、线粒体呼吸、核膜状态
+     - 每个细胞节点生成 2 篇独特的文献引用，聚焦于细胞代谢和应激响应
+     - 信号响应模拟包含细胞特异性的分子事件（受体激活、第二信使、基因转录等）
+   - **数据生成策略**: 
+     - 使用 `hashString()` 函数基于节点 ID 生成稳定的哈希值
+     - 通过哈希值模运算从预定义的类型池、作者池、期刊池中选择元素
+     - 确保每个节点的数据唯一且可重现
+     - 参数值（如代谢率、细胞密度）在基础值上添加哈希驱动的随机变化，模拟生物多样性
+   - **文献多样性**: 
+     - 8 个作者组合池，9 个期刊池，确保文献来源多样化
+     - DOI 动态生成，基于哈希值确保唯一性
+     - 年份范围 2021-2024，根据哈希值分配
+
+4. **文件修改**: 
+   - `src/services/enrichedNodeData.ts`: 
+     - 新增 `tissueTypes`、`cellTypes`、`authorPools`、`journalPools` 数据池
+     - 实现 `hashString()`、`generateTissueData()`、`generateCellData()` 函数
+     - 重构 `getEnrichedNodeData()` 支持组织和细胞级别的动态数据生成
+   - `src/App.tsx`: Signal Input 区块样式和位置调整
+   - `src/components/level2/HierarchyView.tsx`: Signal Input 区块样式和位置调整
+
+**交付标准**:
+- ✅ 所有界面文本完全英文化
+- ✅ Signal Input 交互方式与其他信息区块一致，点击后弹出中央模态窗口
+- ✅ 每个组织节点具有独特的类型、状态描述、3 篇文献、专属信号响应
+- ✅ 每个细胞节点具有独特的类型、状态描述、2 篇文献、专属信号响应
+- ✅ 数据生成基于哈希算法，确保稳定性和可重现性
+- ✅ 无 linter 错误
+
+**Phase 9 二次优化（2026-01-20）**:
+
+根据用户反馈进行的关键修复：
+
+1. **Signal Input 按钮样式和位置调整**:
+   - **问题**: Signal Input 使用 `info-section` 样式，与 ZOOM IN 按钮样式不一致，且距离较远
+   - **修复**: 
+     - 将 Signal Input 改为 `btn` 样式，与 ZOOM IN 按钮使用相同的样式类
+     - 调整位置至 ZOOM IN 按钮正上方，间距 12px，确保两个按钮紧密排列
+     - Signal Input 按钮包含图标（⚡）和文本，视觉风格完全一致
+     - 位于卡片栏底部的操作区域（`marginTop: 'auto'`）内
+
+2. **Signal Input 模态窗口统一**:
+   - **问题**: Signal Input 弹窗使用 `info-modal-overlay` 和 `info-modal-container` 类，导致在不同层级显示位置不一致（首页在下方，子视图在右侧）
+   - **修复**: 
+     - 统一使用与详情弹窗相同的 CSS 类：`modal-backdrop` 和 `modal info-modal`
+     - 确保所有层级的 Signal Input 弹窗都在屏幕中央显示
+     - 遮罩层（`modal-backdrop`）使用固定定位（`position: fixed; inset: 0`），覆盖整个视口
+     - 模态窗口（`modal info-modal`）居中对齐（`display: flex; align-items: center; justify-content: center`）
+     - 标题栏和关闭按钮样式与详情弹窗完全一致
+     - 内容区域支持滚动（`maxHeight: '70vh', overflow: 'auto'`）
+
+3. **视觉一致性**:
+   - Signal Input 按钮和 ZOOM IN 按钮使用相同的 `.btn` 类
+   - Signal Input 弹窗和文献详情弹窗使用相同的 CSS 类和样式
+   - 所有层级（Level 1 和 Level 2+）的交互体验完全统一
+
+**修改文件**:
+- `src/App.tsx`: Signal Input 按钮样式和模态窗口类名调整
+- `src/components/level2/HierarchyView.tsx`: Signal Input 按钮样式和模态窗口类名调整
+
+**最终交付标准**:
+- ✅ Signal Input 按钮与 ZOOM IN 按钮样式完全一致
+- ✅ Signal Input 按钮位于 ZOOM IN 按钮正上方，间距紧凑
+- ✅ Signal Input 弹窗在所有层级都显示在屏幕中央
+- ✅ Signal Input 弹窗样式与文献详情弹窗完全一致
+- ✅ 无 linter 错误
+
+---
+
+**Phase 9 三次优化（2026-01-20）**:
+
+根据用户反馈的最终优化需求：
+
+1. **Signal Input 窗口添加 SIMULATE 按钮**:
+   - **需求**: 将模态窗口底部的提示文本替换为一个 "SIMULATE" 按钮
+   - **实现**: 
+     - 移除了原有的斜体提示文本："* This is a simulated response. Actual signal processing logic will be implemented in future phases."
+     - 添加居中的 SIMULATE 按钮，使用 `.btn` 样式（与 ZOOM IN 和 Signal Input 按钮一致）
+     - 按钮最小宽度 200px，确保视觉突出
+     - 按钮包含占位的 `onClick` 处理函数（TODO: 实现信号模拟逻辑）
+     - 上边距调整为 24px，与窗口内容保持适当间距
+   - **位置**: 在"Expected Response"区域下方
+   - **当前状态**: 按钮已实现，点击逻辑留待后续 Phase 实现
+
+2. **首页连线端点位置修复**:
+   - **问题**: 连线的端点位于节点容器的中心，而节点容器包含了点（dot）和文本标签（label），导致连线没有指向点的中心，而是偏向文本方向
+   - **根本原因**: 
+     - 原有的 `.body-marker` 使用 `display: flex` 布局，点和标签水平排列
+     - 容器的 `transform: translate(-50%, -50%)` 使整个容器（包括文本）居中对齐
+     - 连线坐标指向容器中心，而不是点的中心
+   - **修复方案**: 
+     - 将 `.body-marker` 容器尺寸设为 `width: 0; height: 0`，使其变成一个精确的定位点
+     - 移除 `display: flex` 布局
+     - 将 `.body-marker-dot` 改为绝对定位，位于容器中心（`left: 0; top: 0; transform: translate(-50%, -50%)`）
+     - 将 `.body-marker-label` 改为绝对定位，相对于点向右偏移 16px（`left: 16px; top: 0; transform: translateY(-50%)`）
+     - `.body-marker-glow` 已经是绝对定位，无需修改
+   - **效果**: 现在连线的端点精确指向每个器官节点的点（dot）中心，而不是文本标签位置
+
+3. **视觉一致性验证**:
+   - SIMULATE 按钮样式与所有其他操作按钮一致
+   - 节点标记的视觉表现保持不变（点、光晕、标签都在原位）
+   - 连线端点精确对齐到点的中心，视觉效果更加准确
+
+**修改文件**:
+- `src/App.tsx`: Signal Input 模态窗口底部添加 SIMULATE 按钮
+- `src/components/level2/HierarchyView.tsx`: Signal Input 模态窗口底部添加 SIMULATE 按钮
+- `src/App.css`: 
+  - `.body-marker` 布局调整（移除 flex，设置尺寸为 0）
+  - `.body-marker-dot` 改为绝对定位居中
+  - `.body-marker-label` 改为绝对定位，向右偏移
+
+**最终交付标准**:
+- ✅ Signal Input 窗口包含 SIMULATE 按钮，位置居中，样式统一
+- ✅ 首页连线端点精确指向节点点的中心
+- ✅ 节点标记视觉表现保持不变（点、光晕、标签位置和样式不变）
+- ✅ 所有层级的交互和视觉效果一致
+- ✅ 无 linter 错误
+
+**Phase 9 Bug 修复（2026-01-20）**:
+
+1. **节点位置调整说明**:
+   - 用户根据实际人体图器官位置调整了 `organPositions` 坐标
+   - 连线自动跟随节点移动，端点始终对齐节点中心
+   - 调整方法已在代码注释中说明（修改 x/y 值即可）
+
+2. **子视图卡片按钮显示不全修复**:
+   - **问题**: 在子视图的 NODE DETAILS 卡片中，当内容较多时，SIGNAL INPUT 和 ZOOM IN 按钮位置太靠下，导致显示不全或只能看到上半部分
+   - **原因**: 按钮区域使用 `marginTop: 'auto'` 将按钮推到容器底部，但当内容超出可视区域时，按钮被推到视口外
+   - **修复**: 将按钮区域的 `marginTop: 'auto'` 改为固定的 `marginTop: '24px'`
+   - **效果**: 
+     - 按钮不再强制对齐容器底部
+     - 按钮跟随内容流动，始终可通过滚动访问
+     - 保持了按钮与上方内容的适当间距（24px + 20px padding = 44px 总间距）
+     - 卡片内容区域 `overflow: 'auto'` 确保所有内容（包括按钮）都可滚动查看
+
+**修改文件**:
+- `src/components/level1/HumanBody.tsx`: 添加坐标调整注释说明
+- `src/components/level2/HierarchyView.tsx`: 修复按钮区域布局
+
+**验收标准**:
+- ✅ 节点位置可通过修改 `organPositions` 坐标轻松调整
+- ✅ 连线自动跟随节点移动
+- ✅ 子视图卡片中的按钮完整可见，可通过滚动访问
+- ✅ 所有内容都在可滚动区域内
+- ✅ 无 linter 错误

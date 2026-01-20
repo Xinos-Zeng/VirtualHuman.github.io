@@ -12,13 +12,15 @@ interface HumanBodyProps {
 
 type Position = { x: number; y: number };
 
-// 以图片百分比标注的节点坐标，后续可根据真实标注微调
+// 以图片百分比标注的节点坐标
+// 调整这些坐标可以移动节点位置，连线会自动跟随
+// x: 水平位置 (0-100), y: 垂直位置 (0-100)
 const organPositions: Record<string, Position> = {
-  'organ-brain': { x: 56, y: 8 },
-  'organ-heart': { x: 58, y: 28 },
-  'organ-liver': { x: 50, y: 34 },
-  'organ-kidney': { x: 65, y: 36 },
-  'organ-Intestine': { x: 55, y: 46 },
+  'organ-brain': { x: 51, y: 7 },
+  'organ-heart': { x: 52, y: 28 },
+  'organ-liver': { x: 45, y: 34 },
+  'organ-kidney': { x: 59, y: 36 },
+  'organ-Intestine': { x: 51, y: 46 },
 };
 
 const statusColor = (status: AgentNode['status']) => {
@@ -231,9 +233,9 @@ export const HumanBody: React.FC<HumanBodyProps> = ({ organs, selectedId, onSele
           onClick={handleReset}
           className="btn btn-secondary"
           style={{ padding: '8px 16px', fontSize: '12px' }}
-          title="重置视图"
+          title="Reset view"
         >
-          重置
+          Reset
         </button>
         <div style={{
           background: 'rgba(8, 12, 22, 0.9)',

@@ -5,6 +5,8 @@ import { HierarchyView } from './components/level2/HierarchyView';
 import { DebugPanel } from './components/debug/DebugPanel';
 import './App.css';
 import { AppConfig } from './config/appConfig';
+import { enrichedOrganData, getEnrichedNodeData } from './services/enrichedNodeData';
+import { Literature } from './types/Agent';
 
 type ViewMode = 'LEVEL1' | 'DEBUG' | 'HIERARCHY';
 
@@ -92,10 +94,18 @@ const Level1View: React.FC<{
   const { state, selectNode } = useSimulation();
   const [criticalAcknowledged, setCriticalAcknowledged] = useState<Set<string>>(new Set());
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showSignalInput, setShowSignalInput] = useState(false);
+  const [signalInputText, setSignalInputText] = useState('');
 
   const organs = useMemo(() => Object.values(state.nodes).filter(n => n.level === 'ORGAN'), [state.nodes]);
   const selectedOrganId = state.selectedNodeId || null;
   const selectedOrgan = selectedOrganId ? state.nodes[selectedOrganId] : null;
+  
+  // 获取丰富的器官数据
+  const enrichedData = useMemo(() => {
+    if (!selectedOrgan) return null;
+    return getEnrichedNodeData(selectedOrgan.id, selectedOrgan.name, selectedOrgan.level);
+  }, [selectedOrgan]);
 
   const showModal = selectedOrgan && selectedOrgan.status === 'CRITICAL' && !criticalAcknowledged.has(selectedOrgan.id);
   const closeModal = () => {
@@ -126,7 +136,7 @@ const Level1View: React.FC<{
   return (
     <div className="page fade-in">
       <div className="topbar">
-        <h1 className="title">Virtual Human <span style={{fontSize: '0.6em', opacity: 0.5}}>// LEVEL 1: MACRO</span></h1>
+        <h1 className="title">Life OS <span style={{fontSize: '0.6em', opacity: 0.5}}>// LEVEL 1: MACRO</span></h1>
         <button className="btn btn-secondary" onClick={onDebug}>
           DEBUG CONSOLE
         </button>
@@ -141,7 +151,7 @@ const Level1View: React.FC<{
             onDoubleClick={onEnterHierarchy}
           />
           <div style={{ position: 'absolute', bottom: 20, left: 20, color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-            单击选择 • 双击放大进入 • 滚轮缩放 • 拖动查看
+            Click to select • Double-click to zoom in • Scroll to scale • Drag to pan
           </div>
         </div>
 
@@ -187,9 +197,9 @@ const Level1View: React.FC<{
                       <div className="status-metric-value">{(selectedOrgan.metrics.stress * 100).toFixed(1)}%</div>
                     </div>
                   </div>
-                  {selectedOrgan.description && (
+                  {enrichedData?.statusDetails && (
                     <div className="status-description">
-                      {selectedOrgan.description}
+                      {enrichedData.statusDetails}
                     </div>
                   )}
                 </div>
@@ -207,9 +217,9 @@ const Level1View: React.FC<{
                   <span className="info-section-title">Related Literature</span>
                 </div>
                 <div className="info-section-content">
-                  {selectedOrgan.literature && selectedOrgan.literature.length > 0 ? (
+                  {enrichedData?.literature && enrichedData.literature.length > 0 ? (
                     <div className="literature-list">
-                      {selectedOrgan.literature.map((lit, idx) => (
+                      {enrichedData.literature.slice(0, 2).map((lit, idx) => (
                         <div key={idx} className="literature-item">
                           <div className="literature-title">{lit.title}</div>
                           <div className="literature-meta">
@@ -243,6 +253,14 @@ const Level1View: React.FC<{
               <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
                 <button 
                   className="btn" 
+                  style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '12px' }} 
+                  onClick={() => setShowSignalInput(true)}
+                >
+                  <span>⚡</span>
+                  <span>Signal Input</span>
+                </button>
+                <button 
+                  className="btn" 
                   style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }} 
                   onClick={() => onEnterHierarchy(selectedOrgan.id)}
                 >
@@ -272,7 +290,7 @@ const Level1View: React.FC<{
         <div className="modal-backdrop" onClick={() => setShowDetailModal(false)}>
           <div className="modal info-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>器官详情</span>
+              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>Organ Details</span>
               <button style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px' }} onClick={() => setShowDetailModal(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
@@ -318,8 +336,8 @@ const Level1View: React.FC<{
                   <span className="info-section-title">Related Literature</span>
                 </div>
                 <div className="info-section-content">
-                  {selectedOrgan.literature && selectedOrgan.literature.length > 0 ? (
-                    selectedOrgan.literature.map((lit, idx) => (
+                  {enrichedData?.literature && enrichedData.literature.length > 0 ? (
+                    enrichedData.literature.map((lit, idx) => (
                       <div key={idx} className="literature-item">
                         <div className="literature-title">{lit.title}</div>
                         <div className="literature-meta">
@@ -347,6 +365,93 @@ const Level1View: React.FC<{
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Signal Input Modal */}
+      {showSignalInput && selectedOrgan && (
+        <div 
+          className="modal-backdrop" 
+          onClick={() => {
+            setShowSignalInput(false);
+            setSignalInputText('');
+          }}
+        >
+          <div className="modal info-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>⚡ Signal Input to {selectedOrgan.name}</span>
+              <button 
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px' }} 
+                onClick={() => {
+                  setShowSignalInput(false);
+                  setSignalInputText('');
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+              <div className="info-section">
+                <div className="info-section-header">
+                  <span className="info-section-icon">📝</span>
+                  <span className="info-section-title">Input Signal</span>
+                </div>
+                <div className="info-section-content">
+                  <textarea 
+                    placeholder="Enter signal information (e.g., 'Increased workload', 'External stress detected', 'Nutrient influx')..."
+                    value={signalInputText}
+                    onChange={(e) => setSignalInputText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      minHeight: '120px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text)',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="info-section" style={{ marginTop: '16px' }}>
+                <div className="info-section-header">
+                  <span className="info-section-icon">🔮</span>
+                  <span className="info-section-title">Expected Response (Simulated)</span>
+                </div>
+                <div className="info-section-content">
+                  <div style={{ 
+                    padding: '12px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    whiteSpace: 'pre-line',
+                    lineHeight: 1.6,
+                    color: 'var(--text-dim)',
+                  }}>
+                    {enrichedData?.signalResponse || 'No response simulation available for this organ.'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center' }}>
+                <button 
+                  className="btn" 
+                  style={{ minWidth: '200px' }}
+                  onClick={() => {
+                    // TODO: Implement signal simulation logic
+                  }}
+                >
+                  SIMULATE
+                </button>
               </div>
             </div>
           </div>

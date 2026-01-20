@@ -584,13 +584,12 @@ body::before {
   position: absolute;
   transform: translate(-50%, -50%);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   transition: transform 0.2s ease, opacity 0.2s ease;
   --pulse-color: var(--primary);
   --pulse-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
   animation: float 5s ease-in-out infinite;
+  width: 0;
+  height: 0;
 }
 
 .body-marker:hover {
@@ -613,6 +612,10 @@ body::before {
 }
 
 .body-marker-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -620,7 +623,6 @@ body::before {
   box-shadow: 0 0 12px var(--pulse-color), 0 0 26px rgba(255,255,255,0.35), var(--pulse-shadow), inset 0 0 8px var(--pulse-color);
   background: transparent;
   animation: spark 2.4s ease-in-out infinite;
-  position: relative;
 }
 
 .body-marker-dot::after {
@@ -635,6 +637,10 @@ body::before {
 }
 
 .body-marker-label {
+  position: absolute;
+  left: 16px;
+  top: 0;
+  transform: translateY(-50%);
   background: rgba(8, 12, 22, 0.9);
   padding: 6px 10px;
   border-radius: 8px;

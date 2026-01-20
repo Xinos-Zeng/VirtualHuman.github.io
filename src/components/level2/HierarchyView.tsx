@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { AgentNode, Literature } from '../../types/Agent';
 import { AppConfig } from '../../config/appConfig';
+import { enrichedOrganData, getEnrichedNodeData } from '../../services/enrichedNodeData';
 
 interface HierarchyViewProps {
   currentNode: AgentNode;
@@ -62,6 +63,8 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showSignalInput, setShowSignalInput] = useState(false);
+  const [signalInputText, setSignalInputText] = useState('');
   const positionCacheRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   const fallbackLiterature: Literature[] = useMemo(() => {
@@ -69,19 +72,19 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
     const organId = backgroundOrganId || (currentNode.level === 'ORGAN' ? currentNode.id : 'organ');
     return [
       {
-        title: `${nodeName} 的结构与功能综述（模拟）`,
-        authors: 'Virtual Human Lab',
+        title: `Structural and Functional Overview of ${nodeName} (Simulated)`,
+        authors: 'LifeOS Lab',
         journal: 'Simulated Systems Biology',
         year: 2025,
-        summary: `用于演示的模拟引用：概述 ${nodeName} 在层级网络中的结构位置与功能角色（organ=${organId}）。`,
+        summary: `Demonstration reference: Overview of ${nodeName}'s structural position and functional role in the hierarchical network (organ=${organId}).`,
         doi: '10.0000/sim.vh.2025.001',
       },
       {
-        title: `${nodeName} 指标波动与稳定性分析（模拟）`,
-        authors: 'Virtual Human Lab',
+        title: `${nodeName} Metrics Fluctuation and Stability Analysis (Simulated)`,
+        authors: 'LifeOS Lab',
         journal: 'Digital Physiology',
         year: 2024,
-        summary: `用于演示的模拟引用：讨论 activity/stress 等指标在实时更新下的可视化策略与稳定布局方法。`,
+        summary: `Demonstration reference: Discussion of visualization strategies and stable layout methods for activity/stress metrics under real-time updates.`,
         doi: '10.0000/sim.vh.2024.008',
       },
     ];
@@ -103,8 +106,14 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
   }, [childNodes]);
 
   const selectedNode = selectedNodeId ? childNodes.find(n => n.id === selectedNodeId) : undefined;
-  const selectedNodeLiterature: Literature[] =
-    selectedNode?.literature && selectedNode.literature.length > 0 ? selectedNode.literature : fallbackLiterature;
+  
+  // 获取丰富的节点数据
+  const enrichedData = useMemo(() => {
+    if (!selectedNode) return null;
+    return getEnrichedNodeData(selectedNode.id, selectedNode.name, selectedNode.level);
+  }, [selectedNode]);
+  
+  const selectedNodeLiterature: Literature[] = enrichedData?.literature || fallbackLiterature;
 
   return (
     <div 
@@ -237,7 +246,7 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
 
         {/* 提示信息 */}
         <div className="hierarchy-hint">
-          单击选择节点 • 双击继续放大
+          Click to select node • Double-click to zoom deeper
         </div>
       </div>
 
@@ -284,9 +293,9 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
                     <div className="status-metric-value">{(selectedNode.metrics.stress * 100).toFixed(1)}%</div>
                   </div>
                 </div>
-                {selectedNode.description && (
+                {enrichedData?.statusDetails && (
                   <div className="status-description">
-                    {selectedNode.description}
+                    {enrichedData.statusDetails}
                   </div>
                 )}
               </div>
@@ -337,7 +346,15 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
               </div>
             </div>
 
-            <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+            <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+              <button 
+                className="btn" 
+                style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: selectedNode.childrenIds && selectedNode.childrenIds.length > 0 ? '12px' : '0' }} 
+                onClick={() => setShowSignalInput(true)}
+              >
+                <span>⚡</span>
+                <span>Signal Input</span>
+              </button>
               {selectedNode.childrenIds && selectedNode.childrenIds.length > 0 && (
                 <>
                   <button 
@@ -358,7 +375,7 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
         ) : (
           <div className="empty-state" style={{ height: '100%' }}>
             <div className="empty-state-icon">👆</div>
-          <div>点击节点查看详情</div>
+          <div>Click node to view details</div>
         </div>
         )}
       </div>
@@ -367,7 +384,7 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
         <div className="modal-backdrop" onClick={() => setShowDetailModal(false)}>
           <div className="modal info-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>节点详情</span>
+              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>Node Details</span>
               <button style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px' }} onClick={() => setShowDetailModal(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
@@ -435,6 +452,93 @@ export const HierarchyView: React.FC<HierarchyViewProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Signal Input Modal */}
+      {showSignalInput && selectedNode && (
+        <div 
+          className="modal-backdrop" 
+          onClick={() => {
+            setShowSignalInput(false);
+            setSignalInputText('');
+          }}
+        >
+          <div className="modal info-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span style={{ fontWeight: 600, color: 'var(--primary)' }}>⚡ Signal Input to {selectedNode.name}</span>
+              <button 
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px' }} 
+                onClick={() => {
+                  setShowSignalInput(false);
+                  setSignalInputText('');
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+              <div className="info-section">
+                <div className="info-section-header">
+                  <span className="info-section-icon">📝</span>
+                  <span className="info-section-title">Input Signal</span>
+                </div>
+                <div className="info-section-content">
+                  <textarea 
+                    placeholder="Enter signal information (e.g., 'Increased workload', 'External stress detected', 'Nutrient influx')..."
+                    value={signalInputText}
+                    onChange={(e) => setSignalInputText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      minHeight: '120px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text)',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="info-section" style={{ marginTop: '16px' }}>
+                <div className="info-section-header">
+                  <span className="info-section-icon">🔮</span>
+                  <span className="info-section-title">Expected Response (Simulated)</span>
+                </div>
+                <div className="info-section-content">
+                  <div style={{ 
+                    padding: '12px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    whiteSpace: 'pre-line',
+                    lineHeight: 1.6,
+                    color: 'var(--text-dim)',
+                  }}>
+                    {enrichedData?.signalResponse || 'No response simulation available for this node.'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center' }}>
+                <button 
+                  className="btn" 
+                  style={{ minWidth: '200px' }}
+                  onClick={() => {
+                    // TODO: Implement signal simulation logic
+                  }}
+                >
+                  SIMULATE
+                </button>
               </div>
             </div>
           </div>
